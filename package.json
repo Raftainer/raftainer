@@ -9,7 +9,16 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/consul": "^0.40.3",
+    "@types/dockerode": "^3.3.23",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "consul": "^1.2.0",
+    "dockerode": "^4.0.2",
+    "kafkajs": "^2.2.4",
+    "pino": "^8.18.0",
+    "pino-kafka": "^0.1.2"
   }
 }
