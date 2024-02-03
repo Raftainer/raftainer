@@ -8,6 +8,7 @@ export interface ExposedPort {
   readonly portType: 'Internal' | 'External';
   // The port inside the container to forward traffic to
   readonly containerPort: number;
+
 }
 
 /**

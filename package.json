@@ -15,10 +15,10 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@creditkarma/consul-client": "^1.0.0",
     "consul": "^1.2.0",
     "dockerode": "^4.0.2",
     "kafkajs": "^2.2.4",
-    "pino": "^8.18.0",
-    "pino-kafka": "^0.1.2"
+    "pino": "^8.18.0"
   }
 }
