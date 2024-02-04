@@ -25,5 +25,6 @@ module.exports = {
       "@typescript-eslint/consistent-type-imports": "off",
       "@typescript-eslint/no-misused-promises": "warn",
       "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/strict-boolean-expressions": "warn",
     }
 }

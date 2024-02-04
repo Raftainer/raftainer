@@ -6,12 +6,12 @@ import { Pod, ConsulPodEntry } from '@raftainer/models'
 export const HostSessionName = 'Raftainer Host'
 
 export async function configureHostSession (consul: Consul.Consul): Promise<string> {
-  // @ts-expect-error
+  // @ts-expect-error consul API call
   while ((await consul.session.node(config.name)).find(({ Name: name }) => name === HostSessionName)) {
     logger.warn('Node already has a Raftainer lock. Waiting for lock to expire...')
     await new Promise(resolve => setTimeout(resolve, 10_000 * Math.random()))
   }
-  // @ts-expect-error calling consul API
+  // @ts-expect-error consul API call
   const session: string = (await consul.session.create({
     name: HostSessionName,
     node: config.name,
@@ -19,8 +19,9 @@ export async function configureHostSession (consul: Consul.Consul): Promise<stri
     lockdelay: '10s'
   })).ID
   logger.info(`Created consul session: ${session}`)
+
   setInterval(async () => {
-    // @ts-expect-error calling consul API
+    // @ts-expect-error consul API call
     const [{ CreateIndex: createIndex, ModifyIndex: modifyIndex }] = await consul.session.renew(session)
     logger.trace(`Renewed consul session: ${session}: ${createIndex}, ${modifyIndex}`)
   }, 5_000)
@@ -36,7 +37,7 @@ export async function configureHostSession (consul: Consul.Consul): Promise<stri
 export async function getPods (consul: Consul.Consul): Promise<ConsulPodEntry[]> {
   const keys: string[] = await consul.kv.keys('raftainer/pods')
   return await Promise.all(keys.map(async (key: string) => {
-    // @ts-expect-error deserializing consul config
+    // @ts-expect-error consul API call
     const json: string = (await consul.kv.get(key)).Value
     return { key, pod: JSON.parse(json) as Pod }
   }))
