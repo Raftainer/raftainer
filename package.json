@@ -18,7 +18,6 @@
     "@creditkarma/consul-client": "^1.0.0",
     "consul": "^1.2.0",
     "dockerode": "^4.0.2",
-    "kafkajs": "^2.2.4",
     "pino": "^8.18.0"
   }
 }

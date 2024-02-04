@@ -3,53 +3,11 @@ import Consul from 'consul';
 import { createHash } from 'node:crypto';
 import { config } from './config';
 import { logger } from './logger';
-import { initKafka } from './kafka';
-import { Pod } from '../lib/types/pod';
 import { ExposedPort } from '../lib/types/exposed-port';
+import { ConsulPodEntry } from '../lib/types/consul-pod-entry';
+import { configureHostSession, getPods } from './consul';
 
-const HostSessionName = 'Raftainer Host';
 const OrchestratorName = 'Raftainer';
-
-async function configureHostSession(consul: Consul.Consul) {
-  // @ts-ignore
-  while ((await consul.session.node(config.name)).find(({ Name: name }) => name === HostSessionName)) {
-    logger.warn('Node already has a Raftainer lock. Waiting for lock to expire...');
-    await new Promise(resolve => setTimeout(resolve, 10_000 * Math.random()));
-  }
-  // @ts-ignore
-  const { ID: session } = await consul.session.create({
-    name: HostSessionName,
-    node: config.name,
-    ttl: '10s',
-    lockdelay: '10s',
-  });
-  logger.info(`Created consul session: ${session}`);
-  setInterval(async () => {
-    // @ts-ignore
-    const [{ CreateIndex: createIndex, ModifyIndex: modifyIndex }] = await consul.session.renew(session);
-    logger.trace(`Renewed consul session: ${session}: ${createIndex}, ${modifyIndex}`);
-  }, 5_000);
-
-  process.on('exit', function() {
-    consul.session.destroy(session);
-  });
-
-  return session;
-}
-
-interface ConsulPodEntry {
-  readonly key: string;
-  readonly pod: Pod;
-}
-
-async function getPods(consul: Consul.Consul): Promise<ConsulPodEntry[]> {
-  const keys: string[] = await consul.kv.keys('raftainer/pods');
-  return Promise.all(keys.map(async (key: string) => {
-    // @ts-ignore
-    const { Value: json } = await consul.kv.get(key);
-    return { key, pod: JSON.parse(json) };
-  }));
-}
 
 function getDockerProtocol(port: ExposedPort): string {
   switch(port.protocol) {
@@ -98,7 +56,9 @@ async function launchPodContainers(docker: Docker, podEntry: ConsulPodEntry) {
         RestartPolicy: { Name: containerConfig.restartPolicy },
         PortBindings: containerConfig.ports.reduce((obj, port) => {
           // @ts-ignore
-          obj[`${port.containerPort}/${getDockerProtocol(port)}`] = [{ HostPort: String(port.containerPort) }];
+          obj[`${port.containerPort}/${getDockerProtocol(port)}`] = [
+            { HostPort: String(port.containerPort) }
+          ];
           return obj;
         }, {}),
         Binds: containerConfig.localVolumes.map(v => `${v.hostPath}:${v.containerPath}:${v.mode}`),
@@ -151,8 +111,6 @@ async function getExistingContainers(docker: Docker): Promise<ExistingContainers
   await docker.pruneNetworks({});
 
   await configureHostSession(consul);
-  const producer = await initKafka(consul, docker);
-  //
 
   const podEntries: ConsulPodEntry[] = await getPods(consul);
   //TODO: get and lock pods for this machine
@@ -160,19 +118,6 @@ async function getExistingContainers(docker: Docker): Promise<ExistingContainers
     //TODO: check if pod is already full
     //TODO: lock pod
     const { launchedContainers } = await launchPodContainers(docker, podEntry);
-    await producer.send({
-      topic: `raftainer.pod.events`,
-      messages: [{
-        key: `${podEntry.pod.name}:${config.name}`,
-        value: JSON.stringify({
-          status: 'launched',
-          host: config.name,
-          pod: podEntry.pod,
-          launchedContainers,
-        }),
-      }],
-    });
-      
     //TODO: fire event for pod update
     return { podEntry, launchedContainers };
   }));
