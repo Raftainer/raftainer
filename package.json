@@ -1,5 +1,5 @@
 {
-  "name": "raftainer",
+  "name": "@raftainer/core",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -7,7 +7,7 @@
     "lint": "eslint --fix src/**",
     "build": "tsc"
   },
-  "author": "",
+  "author": "William Rory Kronmiller",
   "license": "ISC",
   "devDependencies": {
     "@types/consul": "^0.40.3",
@@ -22,7 +22,6 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@creditkarma/consul-client": "^1.0.0",
     "consul": "^1.2.0",
     "dockerode": "^4.0.2",
     "pino": "^8.18.0"
