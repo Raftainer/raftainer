@@ -62,7 +62,7 @@ function getDockerProtocol(port: ExposedPort): string {
 
 type ExistingContainers = { [name: string]: ContainerInfo };
 
-async function launchPod(docker: Docker, podEntry: ConsulPodEntry) {
+async function launchPodContainers(docker: Docker, podEntry: ConsulPodEntry) {
   const existingContainers = await getExistingContainers(docker);
   logger.info({ podEntry }, 'Launching pod');
   const launchedContainers = await Promise.all(podEntry.pod.containers.map(async containerConfig => {
@@ -146,7 +146,9 @@ async function getExistingContainers(docker: Docker): Promise<ExistingContainers
   logger.debug('Initializing docker connection');
   const docker = new Docker();
 
-  //await docker.pruneContainers({});
+  await docker.pruneVolumes({});
+  await docker.pruneImages({});
+  await docker.pruneNetworks({});
 
   await configureHostSession(consul);
   const producer = await initKafka(consul, docker);
@@ -157,7 +159,7 @@ async function getExistingContainers(docker: Docker): Promise<ExistingContainers
   await Promise.all(podEntries.map(async podEntry => {
     //TODO: check if pod is already full
     //TODO: lock pod
-    const { launchedContainers } = await launchPod(docker, podEntry);
+    const { launchedContainers } = await launchPodContainers(docker, podEntry);
     await producer.send({
       topic: `raftainer.pod.events`,
       messages: [{
