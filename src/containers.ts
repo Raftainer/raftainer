@@ -2,10 +2,7 @@ import type Docker from 'dockerode'
 import { createHash } from 'node:crypto'
 import { config } from './config'
 import { logger } from './logger'
-import { ExposedPort } from './lib/types/exposed-port'
-import { ConsulPodEntry } from './lib/types/consul-pod-entry'
-import { OrchestratorName } from './lib/const'
-import { Container } from './lib/types/container'
+import { ExposedPort, ConsulPodEntry, OrchestratorName, Container } from '@raftainer/models'
 import { ContainerInfo } from 'dockerode'
 
 export function getDockerProtocol (port: ExposedPort): string {

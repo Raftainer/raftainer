@@ -1,7 +1,7 @@
 import type Consul from 'consul'
 import { config } from './config'
 import { logger } from './logger'
-import { ConsulPodEntry } from './lib/types/consul-pod-entry'
+import { ConsulPodEntry } from '@raftainer/models'
 
 export const HostSessionName = 'Raftainer Host'
 

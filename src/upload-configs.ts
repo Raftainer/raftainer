@@ -1,6 +1,6 @@
 import Consul from 'consul'
 import { logger } from './logger'
-import { type Pod } from '../lib/types/pod'
+import { Pod } from '@raftainer/models'
 
 const pods: Pod[] = [
   {

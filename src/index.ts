@@ -3,8 +3,8 @@ import Consul from 'consul'
 import { config } from './config'
 import { logger } from './logger'
 import { configureHostSession, getPods } from './consul'
-import { launchPodContainers } from './containers';
-import { ConsulPodEntry } from './lib/types/consul-pod-entry'
+import { launchPodContainers } from './containers'
+import { ConsulPodEntry } from '@raftainer/models'
 
 (async function main () {
   logger.info('Starting service')

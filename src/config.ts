@@ -1,5 +1,4 @@
-import { SystemConfig } from './lib/types/system-config'
-import { HostConfig } from './lib/types/host-config'
+import { SystemConfig, HostConfig } from '@raftainer/models'
 
 export const config: SystemConfig & HostConfig = {
   name: 'Morningstar',
