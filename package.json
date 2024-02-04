@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "lint": "eslint --fix src/**",
     "build": "tsc"
   },
   "author": "",
@@ -11,6 +12,12 @@
   "devDependencies": {
     "@types/consul": "^0.40.3",
     "@types/dockerode": "^3.3.23",
+    "@typescript-eslint/eslint-plugin": "^6.20.0",
+    "eslint": "^8.56.0",
+    "eslint-config-standard-with-typescript": "^43.0.1",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-n": "^16.6.2",
+    "eslint-plugin-promise": "^6.1.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },

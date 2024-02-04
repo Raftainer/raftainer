@@ -1,4 +1,3 @@
-import Pino from 'pino';
+import Pino from 'pino'
 
-export const logger = Pino({level: 'debug'});
-
+export const logger = Pino({ level: 'debug' })

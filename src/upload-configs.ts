@@ -1,7 +1,6 @@
-import Consul from 'consul';
-import { logger } from './logger';
-import { Pod } from '../lib/types/pod';
-
+import Consul from 'consul'
+import { logger } from './logger'
+import { type Pod } from '../lib/types/pod'
 
 const pods: Pod[] = [
   {
@@ -10,40 +9,40 @@ const pods: Pod[] = [
       {
         name: 'hello-world',
         image: 'hello-world',
-        environment: {'FOO': 'BAR'},
+        environment: { FOO: 'BAR' },
         localVolumes: [
-          { containerPath: '/container-tmp', hostPath: '/tmp', mode: 'ro' },
+          { containerPath: '/container-tmp', hostPath: '/tmp', mode: 'ro' }
         ],
         restartPolicy: 'no',
         ports: [{
           name: 'test',
           protocol: 'HTTP',
           containerPort: 80,
-          portType: 'Internal',
-        }],
+          portType: 'Internal'
+        }]
       },
       {
         name: 'hello-world-2',
         image: 'hello-world',
-        environment: {'BIZ': 'BAZ'},
+        environment: { BIZ: 'BAZ' },
         localVolumes: [],
         restartPolicy: 'no',
-        ports: [],
+        ports: []
       }
     ],
-    maxInstances: 2,
+    maxInstances: 2
   }
 ];
 
-(async function main() {
-  logger.debug('Initializing consul connection');
-  const consul: Consul.Consul = new Consul();
-  logger.info('Uploading Pod configs');
-  for(const pod of pods) {
+(async function main () {
+  logger.debug('Initializing consul connection')
+  const consul: Consul.Consul = new Consul()
+  logger.info('Uploading Pod configs')
+  for (const pod of pods) {
     await consul.kv.set({
-      key: `raftainer/pods/${pod.name}`, 
-      value: JSON.stringify(pod),
-    });
+      key: `raftainer/pods/${pod.name}`,
+      value: JSON.stringify(pod)
+    })
   }
-  logger.info('Finished');
-})();
+  logger.info('Finished')
+})()
