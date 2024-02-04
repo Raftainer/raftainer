@@ -22,6 +22,8 @@ module.exports = {
         "sourceType": "module"
     },
     "rules": {
-      "@typescript-eslint/consistent-type-imports": "off"
+      "@typescript-eslint/consistent-type-imports": "off",
+      "@typescript-eslint/no-misused-promises": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
     }
 }

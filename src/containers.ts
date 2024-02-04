@@ -1,6 +1,5 @@
 import type Docker from 'dockerode'
 import { createHash } from 'node:crypto'
-import { config } from './config'
 import { logger } from './logger'
 import { ExposedPort, ConsulPodEntry, OrchestratorName, Container } from '@raftainer/models'
 import { ContainerInfo } from 'dockerode'
@@ -14,6 +13,7 @@ export function getDockerProtocol (port: ExposedPort): string {
   }
 }
 
+// Container Name -> Container Info
 type ExistingContainers = Record<string, ContainerInfo>
 
 /**
@@ -27,7 +27,7 @@ async function getExistingContainers (docker: Docker): Promise<ExistingContainer
     }
   })).reduce((obj, container: ContainerInfo) => {
     logger.trace({ container }, 'Found existing container')
-    // @ts-expect-error
+    // @ts-expect-error assuming that container has exactly one name with '/' as prefix
     obj[container.Names[0].slice(1)] = container // remove leading slash in name
     return obj
   }, {})
@@ -37,12 +37,12 @@ async function getExistingContainers (docker: Docker): Promise<ExistingContainer
 async function launchPodContainer (docker: Docker,
   existingContainers: ExistingContainers,
   podEntry: ConsulPodEntry,
-  containerConfig: Container) {
+  containerConfig: Container): Promise<object> {
   await docker.pull(containerConfig.image)
   const containerName = `${podEntry.pod.name}.${containerConfig.name}`
   const configHash = createHash('md5').update(JSON.stringify(containerConfig)).digest('hex')
   const existingContainerInfo = existingContainers[containerName]
-  if (existingContainerInfo) {
+  if (existingContainerInfo !== undefined) {
     logger.debug({ containerName, existingContainerInfo }, 'Found existing container')
     const existingContainer = docker.getContainer(existingContainerInfo.Id)
     // TODO: check image hash
@@ -69,7 +69,7 @@ async function launchPodContainer (docker: Docker,
     HostConfig: {
       RestartPolicy: { Name: containerConfig.restartPolicy },
       PortBindings: containerConfig.ports.reduce((obj, port) => {
-        // @ts-expect-error
+        // @ts-expect-error calling Docker API
         obj[`${port.containerPort}/${getDockerProtocol(port)}`] = [
           { HostPort: String(port.containerPort) }
         ]
@@ -93,7 +93,7 @@ async function launchPodContainer (docker: Docker,
   }
 }
 
-export async function launchPodContainers (docker: Docker, podEntry: ConsulPodEntry) {
+export async function launchPodContainers (docker: Docker, podEntry: ConsulPodEntry): Promise<any> {
   const existingContainers = await getExistingContainers(docker)
   logger.info({ podEntry }, 'Launching pod')
   const launchedContainers = await Promise.all(podEntry.pod.containers.map(async (containerConfig) => await launchPodContainer(docker, existingContainers, podEntry, containerConfig)))

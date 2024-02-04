@@ -1,6 +1,5 @@
 import Docker from 'dockerode'
 import Consul from 'consul'
-import { config } from './config'
 import { logger } from './logger'
 import { configureHostSession, getPods } from './consul'
 import { launchPodContainers } from './containers'
@@ -19,7 +18,7 @@ import { ConsulPodEntry } from '@raftainer/models'
   await docker.pruneImages({})
   await docker.pruneNetworks({})
 
-  await configureHostSession(consul)
+  const session: string = await configureHostSession(consul)
 
   const podEntries: ConsulPodEntry[] = await getPods(consul)
   // TODO: get and lock pods for this machine
@@ -31,4 +30,6 @@ import { ConsulPodEntry } from '@raftainer/models'
     return { podEntry, launchedContainers }
   }))
   // TODO: prune out extra containers
-})()
+})().catch(err => {
+  logger.error(`Service crashed: ${err}`)
+})
