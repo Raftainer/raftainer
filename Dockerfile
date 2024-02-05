@@ -7,6 +7,6 @@ WORKDIR /app
 COPY package.json .
 COPY package-lock.json .
 RUN npm install
-COPY src .
+COPY src ./src
 
-ENTRYPOINT ts-node src/index.ts
+ENTRYPOINT npm run start

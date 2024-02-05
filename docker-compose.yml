@@ -1,0 +1,7 @@
+services:
+  raftainer:
+    build: .
+    volumes:
+      - ./src:/app/src:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: npm run start:watch
