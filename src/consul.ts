@@ -4,6 +4,7 @@ import { logger } from './logger';
 import { Pod, ConsulPodEntry } from '@raftainer/models';
 
 export const HostSessionName = 'Raftainer Host';
+export const RaftainerPodsKey = 'raftainer/pods';
 
 export async function configureHostSession (consul: Consul.Consul): Promise<string> {
   if(!config.fastStartup) {
@@ -37,7 +38,7 @@ export async function configureHostSession (consul: Consul.Consul): Promise<stri
 }
 
 export async function getPods (consul: Consul.Consul): Promise<ConsulPodEntry[]> {
-  const keys: string[] = await consul.kv.keys('raftainer/pods');
+  const keys: string[] = await consul.kv.keys(RaftainerPodsKey);
   return await Promise.all(keys.map(async (key: string) => {
     // @ts-expect-error consul API call
     const json: string = (await consul.kv.get(key)).Value;
