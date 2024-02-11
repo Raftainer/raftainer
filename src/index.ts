@@ -33,28 +33,41 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
     }
   }));
 
-  launchedPods.forEach(async pod => {
+
+  // (Re)init pods
+  const serviceIds = await Promise.all(launchedPods.map(async pod => {
+    const id = `raftainer:${pod.podEntry.pod.name}:pod`;
     await consul.agent.service.register({
+      id,
       name: `raftainer:${pod.podEntry.pod.name}`,
-      id: `raftainer:${pod.podEntry.pod.name}:pod`,
       check: {
-        status: (pod.error) ? 'critical': 'passing',
         ttl: `${UpdateInterval / 1_000 * 1.2}s`,
       },
     });
-  });
+    if(pod.error) {
+      await consul.agent.check.fail(`service:${id}`);
+    } else {
+      await consul.agent.check.pass(`service:${id}`);
+    }
+    return id;
+  }));
+
+  // Clear existing registrations
+  const registeredServices: object = await consul.agent.service.list();
+  await Promise.all(Object.keys(registeredServices)
+    .filter(name => name.startsWith('raftainer:'))
+    .filter(name => !serviceIds.includes(name))
+    .map(service => consul.agent.service.deregister(service)));
 
   const successfulPods = launchedPods.filter(({ error }) => !error);
   const failedPods = launchedPods.filter(({ error }) => error);
+
   if(failedPods.length > 0) {
     logger.error('Failed to launch all pods', {failedPods});
   }
 
   // Deregister old pods
-  const deactivatedPodNames = await stopOrphanedContainers(docker, new Set(successfulPods.map(pod => pod.podEntry.pod.name)));
-  for(const podName of deactivatedPodNames) {
-    consul.agent.service.deregister(`raftainer:${podName}`);
-  }
+  await stopOrphanedContainers(docker, new Set(successfulPods.map(pod => pod.podEntry.pod.name)));
 }
 
 (async function main () {
