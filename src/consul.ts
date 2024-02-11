@@ -54,18 +54,18 @@ export interface ConsulPodEntryWithLock extends ConsulPodEntry {
 export type PodLock = { [podName: string]: string };
 
 async function tryLock(consul: Consul.Consul, session: string, lockKey: string) {
-    const lockResult = await consul.kv.set({ 
-      key: lockKey, 
-      value: JSON.stringify({ 
-        holders: [session],
-        host: config.name,
-        region: config.region,
-        timestamp: Date.now(),
-      }), 
-      acquire: session 
-    });
-    logger.debug('Lock result for key %s: ', lockKey, lockResult || false);
-    return lockResult;
+  const lockResult = await consul.kv.set({ 
+    key: lockKey, 
+    value: JSON.stringify({ 
+      holders: [session],
+      host: config.name,
+      region: config.region,
+      timestamp: Date.now(),
+    }), 
+    acquire: session 
+  });
+  logger.debug('Lock result for key %s: ', lockKey, lockResult || false);
+  return lockResult;
 
 }
 
@@ -81,7 +81,7 @@ export async function tryLockPod(
   if(lockKey) {
     const lockResult = await tryLock(consul, session, lockKey);
     if(lockResult) {
-      logger.info('Got lock %d for pod %s', lockKey, pod.pod.name);
+      logger.info('Got lock %s for pod %s', lockKey, pod.pod.name);
       return { ...pod, lockKey, };
     }
   }

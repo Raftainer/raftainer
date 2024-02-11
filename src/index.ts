@@ -1,12 +1,14 @@
 import Docker from 'dockerode';
 import Consul from 'consul';
 import { logger } from './logger';
-import { configureHostSession, getPods, tryLockPod, ConsulPodEntryWithLock, PodLock, RaftainerPodsKey } from './consul';
+import { configureHostSession, getPods, tryLockPod, ConsulPodEntryWithLock, PodLock, } from './consul';
 import { launchPodContainers, stopOrphanedContainers } from './containers';
 import { ConsulPodEntry } from '@raftainer/models';
 import { config } from './config';
 
 const podLocks: PodLock = {};
+
+const UpdateInterval = 10_000;
 
 async function syncPods(consul: Consul.Consul, docker: Docker, session: string) {
   logger.info('Syncing pods', { session });
@@ -31,7 +33,16 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
     }
   }));
 
-  logger.debug('Launched pods', {launchedPods, session, });
+  launchedPods.forEach(async pod => {
+    await consul.agent.service.register({
+      name: `raftainer:${pod.podEntry.pod.name}`,
+      id: `raftainer:${pod.podEntry.pod.name}:pod`,
+      check: {
+        status: (pod.error) ? 'critical': 'passing',
+        ttl: `${UpdateInterval / 1_000 * 1.2}s`,
+      },
+    });
+  });
 
   const successfulPods = launchedPods.filter(({ error }) => !error);
   const failedPods = launchedPods.filter(({ error }) => error);
@@ -39,7 +50,11 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
     logger.error('Failed to launch all pods', {failedPods});
   }
 
-  await stopOrphanedContainers(docker, new Set(successfulPods.map(pod => pod.podEntry.pod.name)));
+  // Deregister old pods
+  const deactivatedPodNames = await stopOrphanedContainers(docker, new Set(successfulPods.map(pod => pod.podEntry.pod.name)));
+  for(const podName of deactivatedPodNames) {
+    consul.agent.service.deregister(`raftainer:${podName}`);
+  }
 }
 
 (async function main () {
@@ -60,7 +75,7 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
 
   const session: string = await configureHostSession(consul);
   syncPods(consul, docker, session);
-  setInterval(() => syncPods(consul, docker, session), 30_000);
+  setInterval(() => syncPods(consul, docker, session), UpdateInterval);
 
 })().catch(err => {
   logger.error(`Service crashed: ${err}`);

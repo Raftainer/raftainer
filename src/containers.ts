@@ -115,15 +115,21 @@ export async function launchPodContainers (docker: Docker, podEntry: ConsulPodEn
   return { ...podEntry, launchedContainers };
 }
 
-export async function stopOrphanedContainers (docker: Docker, activePodNames: Set<string>) {
+export async function stopOrphanedContainers (docker: Docker, activePodNames: Set<string>): Promise<Set<string>> {
+  const deactivatedPodNames = new Set<string>();
   const existingContainers = await getExistingContainers(docker);
   Object.keys(existingContainers).forEach(name => {
     const containerInfo = existingContainers[name];
-    if(!activePodNames.has(containerInfo.Labels['PodName'])) {
+    // Get the name of the pod associated with the container
+    const podName = containerInfo.Labels['PodName'];
+    if(!activePodNames.has(podName)) {
+      deactivatedPodNames.add(podName);
       logger.info('Terminating container: %s', containerInfo.Names[0]);
       const container = docker.getContainer(containerInfo.Id);
       container.remove({ force: true }).catch(error => logger.error('Failed to delete container', { error }));
     }
   });
+
+  return deactivatedPodNames;
   
 }
