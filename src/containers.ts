@@ -122,7 +122,7 @@ export async function stopOrphanedContainers (docker: Docker, activePodNames: Se
     if(!activePodNames.has(containerInfo.Labels['PodName'])) {
       logger.info('Terminating container: %s', containerInfo.Names[0]);
       const container = docker.getContainer(containerInfo.Id);
-      container.remove({ force: true });
+      container.remove({ force: true }).catch(error => logger.error('Failed to delete container', { error }));
     }
   });
   
