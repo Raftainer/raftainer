@@ -25,7 +25,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@raftainer/models": "file:../models",
+    "@raftainer/models": "^0.0.10",
     "consul": "^1.2.0",
     "dockerode": "^4.0.2",
     "pino": "^8.18.0"

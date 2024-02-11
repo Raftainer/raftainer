@@ -50,16 +50,9 @@ export interface ConsulPodEntryWithLock extends ConsulPodEntry {
   readonly lockKey: string;
 }
 
-export async function tryLockPod(
-  consul: Consul.Consul, 
-  session: string, 
-  pod: ConsulPodEntry,
-): Promise<ConsulPodEntryWithLock | null> {
-  logger.info('Attempting to lock pod %s', pod.pod.name);
+export type PodLock = { [podName: string]: string };
 
-  for(let i = 0; i < pod.pod.maxInstances; i++) {
-    const lockKey = `${pod.key}/hosts/${i}/.lock`;
-    logger.debug('Attempting to lock key %s', lockKey);
+async function tryLock(consul: Consul.Consul, session: string, lockKey: string) {
     const lockResult = await consul.kv.set({ 
       key: lockKey, 
       value: JSON.stringify({ 
@@ -71,8 +64,33 @@ export async function tryLockPod(
       acquire: session 
     });
     logger.debug('Lock result for key %s: ', lockKey, lockResult || false);
+    return lockResult;
+
+}
+
+export async function tryLockPod(
+  consul: Consul.Consul, 
+  session: string, 
+  podLocks: PodLock,
+  pod: ConsulPodEntry,
+): Promise<ConsulPodEntryWithLock | null> {
+  logger.info('Attempting to lock pod %s', pod.pod.name);
+
+  let lockKey = podLocks[pod.pod.name];
+  if(lockKey) {
+    const lockResult = await tryLock(consul, session, lockKey);
     if(lockResult) {
-      logger.info('Got lock %d for pod %s', i, pod.pod.name);
+      logger.info('Got lock %d for pod %s', lockKey, pod.pod.name);
+      return { ...pod, lockKey, };
+    }
+  }
+
+  for(let i = 0; i < pod.pod.maxInstances; i++) {
+    lockKey = `${pod.key}/hosts/${i}/.lock`;
+    logger.debug('Attempting to lock key %s', lockKey);
+    const lockResult = await tryLock(consul, session, lockKey);
+    if(lockResult) {
+      logger.info('Got lock %d for pod %s', lockKey, pod.pod.name);
       return { ...pod, lockKey };
     }
   }

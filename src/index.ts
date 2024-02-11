@@ -1,19 +1,25 @@
 import Docker from 'dockerode';
 import Consul from 'consul';
 import { logger } from './logger';
-import { configureHostSession, getPods, tryLockPod, ConsulPodEntryWithLock } from './consul';
+import { configureHostSession, getPods, tryLockPod, ConsulPodEntryWithLock, PodLock } from './consul';
 import { launchPodContainers, stopOrphanedContainers } from './containers';
 import { ConsulPodEntry } from '@raftainer/models';
 import { config } from './config';
+
+const podLocks: PodLock = {};
 
 async function syncPods(consul: Consul.Consul, docker: Docker, session: string) {
   logger.info('Syncing pods', { session });
   const podEntries: ConsulPodEntry[] = await getPods(consul);
   logger.debug('Full list of pods',  { podEntries });
-  const lockedPods: ConsulPodEntryWithLock[] = (await Promise.all(podEntries.map(async podEntry => tryLockPod(consul, session, podEntry))))
+  const lockedPods: ConsulPodEntryWithLock[] = (await Promise.all(podEntries.map(async podEntry => tryLockPod(consul, session, podLocks, podEntry))))
     .filter(elem => elem !== null)
     .map(elem => elem as ConsulPodEntryWithLock);
-  logger.debug('Acquired pods', {podEntries, session, });
+  logger.debug('Acquired pods', { podEntries, session, });
+
+  for(const lockedPod of lockedPods) {
+    podLocks[lockedPod.pod.name] = lockedPod.lockKey;
+  }
 
   const launchedPods = await Promise.all(lockedPods.map(async (podEntry) => {
     try {
@@ -54,7 +60,7 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
 
   const session: string = await configureHostSession(consul);
   syncPods(consul, docker, session);
-  setInterval(() => syncPods(consul, docker, session), 10_000);
+  setInterval(() => syncPods(consul, docker, session), 1_000);
 
 })().catch(err => {
   logger.error(`Service crashed: ${err}`);
