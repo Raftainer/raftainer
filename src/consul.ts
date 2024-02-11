@@ -44,3 +44,41 @@ export async function getPods (consul: Consul.Consul): Promise<ConsulPodEntry[]>
     return { key, pod: JSON.parse(json) as Pod };
   }));
 }
+
+
+export interface ConsulPodEntryWithLock extends ConsulPodEntry {
+  readonly lockKey: string;
+}
+
+export async function tryLockPod(
+  consul: Consul.Consul, 
+  session: string, 
+  pod: ConsulPodEntry,
+): Promise<ConsulPodEntryWithLock | null> {
+  logger.info('Attempting to lock pod %s', pod.pod.name);
+
+  for(let i = 0; i < pod.pod.maxInstances; i++) {
+    const lockKey = `${pod.key}/hosts/${i}/.lock`;
+    logger.debug('Attempting to lock key %s', lockKey);
+    const lockResult = await consul.kv.set({ 
+      key: lockKey, 
+      value: JSON.stringify({ 
+        holders: [session],
+        host: config.name,
+        region: config.region,
+        timestamp: Date.now(),
+      }), 
+      acquire: session 
+    });
+    logger.debug('Lock result for key %s: ', lockKey, lockResult || false);
+    if(lockResult) {
+      logger.info('Got lock %d for pod %s', i, pod.pod.name);
+      return { ...pod, lockKey };
+    }
+  }
+  logger.info('Did not get lock for pod %s', pod.pod.name);
+
+  return null;
+}
+
+

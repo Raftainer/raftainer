@@ -114,3 +114,16 @@ export async function launchPodContainers (docker: Docker, podEntry: ConsulPodEn
 
   return { ...podEntry, launchedContainers };
 }
+
+export async function stopOrphanedContainers (docker: Docker, activePodNames: Set<string>) {
+  const existingContainers = await getExistingContainers(docker);
+  Object.keys(existingContainers).forEach(name => {
+    const containerInfo = existingContainers[name];
+    if(!activePodNames.has(containerInfo.Labels['PodName'])) {
+      logger.info('Terminating container: %s', containerInfo.Names[0]);
+      const container = docker.getContainer(containerInfo.Id);
+      container.remove({ force: true });
+    }
+  });
+  
+}

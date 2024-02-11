@@ -1,45 +1,40 @@
 import Docker from 'dockerode';
 import Consul from 'consul';
 import { logger } from './logger';
-import { configureHostSession, getPods } from './consul';
-import { launchPodContainers } from './containers';
+import { configureHostSession, getPods, tryLockPod, ConsulPodEntryWithLock } from './consul';
+import { launchPodContainers, stopOrphanedContainers } from './containers';
 import { ConsulPodEntry } from '@raftainer/models';
 import { config } from './config';
 
-interface ConsulPodEntryWithLock extends ConsulPodEntry {
-  readonly lockKey: string;
-}
+async function syncPods(consul: Consul.Consul, docker: Docker, session: string) {
+  logger.info('Syncing pods', { session });
+  const podEntries: ConsulPodEntry[] = await getPods(consul);
+  logger.debug('Full list of pods',  { podEntries });
+  const lockedPods: ConsulPodEntryWithLock[] = (await Promise.all(podEntries.map(async podEntry => tryLockPod(consul, session, podEntry))))
+    .filter(elem => elem !== null)
+    .map(elem => elem as ConsulPodEntryWithLock);
+  logger.debug('Acquired pods', {podEntries, session, });
 
-async function tryLockPod(
-  consul: Consul.Consul, 
-  session: string, 
-  pod: ConsulPodEntry,
-): Promise<ConsulPodEntryWithLock | null> {
-  logger.info('Attempting to lock pod %s', pod.pod.name);
-
-  for(let i = 0; i < pod.pod.maxInstances; i++) {
-    const lockKey = `${pod.key}/hosts/${i}/.lock`;
-    logger.debug('Attempting to lock key %s', lockKey);
-    const lockResult = await consul.kv.set({ 
-      key: lockKey, 
-      value: JSON.stringify({ 
-        holders: [session],
-        host: config.name,
-        region: config.region,
-      }), 
-      acquire: session 
-    });
-    logger.debug('Lock result for key %s: ', lockKey, lockResult || false);
-    if(lockResult) {
-      logger.info('Got lock %d for pod %s', i, pod.pod.name);
-      return { ...pod, lockKey };
+  const launchedPods = await Promise.all(lockedPods.map(async (podEntry) => {
+    try {
+      const { launchedContainers } = await launchPodContainers(docker, podEntry);
+      logger.info('Launched pod %s', podEntry.pod.name);
+      return { podEntry, launchedContainers };
+    } catch (error) {
+      return { podEntry, error };
     }
+  }));
+
+  logger.debug('Launched pods', {launchedPods, session, });
+
+  const successfulPods = launchedPods.filter(({ error }) => !error);
+  const failedPods = launchedPods.filter(({ error }) => error);
+  if(failedPods.length > 0) {
+    logger.error('Failed to launch all pods', {failedPods});
   }
-  logger.info('Did not get lock for pod %s', pod.pod.name);
 
-  return null;
+  await stopOrphanedContainers(docker, new Set(successfulPods.map(pod => pod.podEntry.pod.name)));
 }
-
 
 (async function main () {
   logger.info('Starting service');
@@ -58,18 +53,9 @@ async function tryLockPod(
   await docker.pruneNetworks({});
 
   const session: string = await configureHostSession(consul);
+  syncPods(consul, docker, session);
+  setInterval(() => syncPods(consul, docker, session), 10_000);
 
-  const podEntries: ConsulPodEntry[] = await getPods(consul);
-  const lockedPods: ConsulPodEntryWithLock[] = (await Promise.all(podEntries.map(async podEntry => tryLockPod(consul, session, podEntry))))
-    .filter(elem => elem !== null)
-    .map(elem => elem as ConsulPodEntryWithLock);
-
-  await Promise.all(lockedPods.map(async (podEntry) => {
-    const { launchedContainers } = await launchPodContainers(docker, podEntry);
-    logger.info('Launched pod %s', podEntry.pod.name);
-    return { podEntry, launchedContainers };
-  }));
-  // TODO: prune out extra containers running on host
 })().catch(err => {
   logger.error(`Service crashed: ${err}`);
 });
