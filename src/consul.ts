@@ -6,6 +6,12 @@ import { Pod, ConsulPodEntry } from '@raftainer/models';
 export const HostSessionName = 'Raftainer Host';
 export const RaftainerPodsKey = 'raftainer/pods';
 
+export interface ConsulPodEntryWithLock extends ConsulPodEntry {
+  readonly lockKey: string;
+}
+
+export type PodLock = { [podName: string]: string };
+
 export async function configureHostSession (consul: Consul.Consul): Promise<string> {
   if(!config.fastStartup) {
     // @ts-expect-error consul API call
@@ -46,13 +52,6 @@ export async function getPods (consul: Consul.Consul): Promise<ConsulPodEntry[]>
   }));
 }
 
-
-export interface ConsulPodEntryWithLock extends ConsulPodEntry {
-  readonly lockKey: string;
-}
-
-export type PodLock = { [podName: string]: string };
-
 async function tryLock(consul: Consul.Consul, session: string, lockKey: string) {
   const lockResult = await consul.kv.set({ 
     key: lockKey, 
@@ -77,8 +76,9 @@ export async function tryLockPod(
 ): Promise<ConsulPodEntryWithLock | null> {
   logger.info('Attempting to lock pod %s', pod.pod.name);
 
+  // Try to use existing lock key, iff it would not violate the current `maxInstances` count
   let lockKey = podLocks[pod.pod.name];
-  if(lockKey) {
+  if(lockKey && lockKey < `${pod.key}/hosts/${pod.pod.maxInstances}/.lock`) {
     const lockResult = await tryLock(consul, session, lockKey);
     if(lockResult) {
       logger.info('Got lock %s for pod %s', lockKey, pod.pod.name);
