@@ -1,13 +1,13 @@
 import { SystemConfig, HostConfig } from '@raftainer/models';
 
 export const config: SystemConfig & HostConfig = {
-  name: 'Morningstar',
-  region: 'JFK',
-  secureIp: '192.168.6.2',
-  internalIp: '192.168.69.130',
+  name: process.env.HOSTNAME!,
+  region: process.env.RAFTAINER_REGION!,
+  secureIp: process.env.RAFTAINER_SECURE_IP,
+  internalIp: process.env.RAFTAINER_INTERNAL_IP!,
   consul: {
-    host: 'consul.service.consul',
-    port: 8500,
+    host: process.env.RAFTAINER_CONSUL_HOST!,
+    port: Number(process.env.RAFTAINER_CONSUL_PORT || '8500'),
   },
-  fastStartup: true, // TODO: load all these settings from environment
+  fastStartup: Boolean(JSON.parse(process.env.RAFTAINER_FAST_STARTUP || 'false')),
 };
