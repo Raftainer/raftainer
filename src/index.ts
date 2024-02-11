@@ -60,7 +60,7 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
 
   const session: string = await configureHostSession(consul);
   syncPods(consul, docker, session);
-  setInterval(() => syncPods(consul, docker, session), 1_000);
+  setInterval(() => syncPods(consul, docker, session), 10_000);
 
 })().catch(err => {
   logger.error(`Service crashed: ${err}`);
