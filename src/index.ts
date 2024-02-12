@@ -1,7 +1,7 @@
 import Docker from 'dockerode';
 import Consul from 'consul';
 import { logger } from './logger';
-import { configureHostSession, getPods, tryLockPod, ConsulPodEntryWithLock, PodLock, RaftainerPodsKey } from './consul';
+import { configureHostSession, getPods, tryLockPod, ConsulPodEntryWithLock, PodLock, RaftainerPodsKey, releasePod } from './consul';
 import { launchPodContainers, stopOrphanedContainers } from './containers';
 import { ConsulPodEntry } from '@raftainer/models';
 import { config } from './config';
@@ -47,8 +47,12 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
       },
     });
     if(pod.error) {
-      await consul.agent.check.fail(`service:${id}`);
+      await consul.agent.check.fail({
+        id: `service:${id}`,
+        note: String(pod.error),
+      });
     } else {
+      console.log('Marking service healthy', id);
       await consul.agent.check.pass(`service:${id}`);
     }
     return id;
@@ -65,7 +69,10 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
   const failedPods = launchedPods.filter(({ error }) => error);
 
   if(failedPods.length > 0) {
-    logger.error('Failed to launch all pods', {failedPods});
+    logger.error({ failedPods }, 'Failed to launch all pods');
+    for(const { podEntry, error } of failedPods) {
+      await releasePod(consul, session, podEntry, error);
+    }
   }
 
   // Deregister old pods

@@ -43,33 +43,42 @@ function getRestartPolicy(containerType: ContainerType): string {
   }
 }
 
+function getHash(item: string): string {
+  return createHash('md5').update(item).digest('hex');
+}
+
 async function launchPodContainer (docker: Docker,
   existingContainers: ExistingContainers,
   podEntry: ConsulPodEntry,
   containerConfig: Container): Promise<object> {
   await docker.pull(containerConfig.image);
   const containerName = `${podEntry.pod.name}.${containerConfig.name}`;
-  const configHash = createHash('md5').update(JSON.stringify(containerConfig)).digest('hex');
+  const configHash = getHash(JSON.stringify(containerConfig));
   const existingContainerInfo = existingContainers[containerName];
-  if (existingContainerInfo !== undefined) {
-    logger.debug({ containerName, existingContainerInfo }, 'Found existing container');
-    const existingContainer = docker.getContainer(existingContainerInfo.Id);
-    // TODO: check image hash
-    if (existingContainerInfo.Labels.ConfigHash === configHash) {
-      logger.debug({ containerName, existingContainerInfo }, 'Container config matches existing config');
-      if (existingContainerInfo.State !== 'running' && containerConfig.containerType !== ContainerType.PodStartup) {
-        //TODO: perhaps it makes more sense to re-create the container?
-        logger.debug({ containerName, existingContainerInfo }, 'Re-starting existing container');
-        await existingContainer.start();
+  try {
+    if (existingContainerInfo !== undefined) {
+      logger.debug({ containerName, existingContainerInfo }, 'Found existing container');
+      const existingContainer = docker.getContainer(existingContainerInfo.Id);
+      // TODO: check image hash
+      if (existingContainerInfo.Labels.ConfigHash === configHash) {
+        logger.debug({ containerName, existingContainerInfo }, 'Container config matches existing config');
+        if (existingContainerInfo.State !== 'running' && containerConfig.containerType !== ContainerType.PodStartup) {
+          //TODO: perhaps it makes more sense to re-create the container?
+          logger.debug({ containerName, existingContainerInfo }, 'Re-starting existing container');
+          await existingContainer.start();
+        }
+        return {
+          container: await existingContainer.inspect(),
+          config: containerConfig
+        };
       }
-      return {
-        container: await existingContainer.inspect(),
-        config: containerConfig
-      };
+      logger.debug({ existingContainerInfo }, 'Removing existing container');
+      await existingContainer.remove({ force: true });
+      logger.debug({ containerName, existingContainerInfo }, 'Removed existing container');
     }
-    logger.debug({ existingContainerInfo }, 'Removing existing container');
-    await existingContainer.remove({ force: true });
-    logger.debug({ containerName, existingContainerInfo }, 'Removed existing container');
+  } catch (error) {
+    logger.warn({ error, existingContainerInfo }, 'Failed to launch existing container');
+    await docker.getContainer(existingContainerInfo.Id).remove({ force: true });
   }
   const container = await docker.createContainer({
     name: containerName,
@@ -89,7 +98,6 @@ async function launchPodContainer (docker: Docker,
     },
     Labels: {
       PodName: podEntry.pod.name,
-      PodConsulKey: podEntry.key,
       PodContainerName: containerConfig.name,
       OrchestratorName,
       ConfigHash: configHash
@@ -115,21 +123,16 @@ export async function launchPodContainers (docker: Docker, podEntry: ConsulPodEn
   return { ...podEntry, launchedContainers };
 }
 
-export async function stopOrphanedContainers (docker: Docker, activePodNames: Set<string>): Promise<Set<string>> {
-  const deactivatedPodNames = new Set<string>();
+export async function stopOrphanedContainers (docker: Docker, activePodNames: Set<string>) {
   const existingContainers = await getExistingContainers(docker);
   Object.keys(existingContainers).forEach(name => {
     const containerInfo = existingContainers[name];
     // Get the name of the pod associated with the container
     const podName = containerInfo.Labels['PodName'];
     if(!activePodNames.has(podName)) {
-      deactivatedPodNames.add(podName);
       logger.info('Terminating container: %s', containerInfo.Names[0]);
       const container = docker.getContainer(containerInfo.Id);
       container.remove({ force: true }).catch(error => logger.error('Failed to delete container', { error }));
     }
   });
-
-  return deactivatedPodNames;
-  
 }

@@ -66,7 +66,6 @@ async function tryLock(consul: Consul.Consul, session: string, lockKey: string) 
   });
   logger.debug('Lock result for key %s: ', lockKey, lockResult || false);
   return lockResult;
-
 }
 
 function getLockKey(podName: string, index: Number): string {
@@ -105,6 +104,29 @@ export async function tryLockPod(
   logger.info('Did not get lock for pod %s', pod.pod.name);
 
   return null;
+}
+
+/**
+ * If we failed to deploy a pod, release it so that other hosts can attempt
+ * to launch it.
+ */
+export async function releasePod(
+  consul: Consul.Consul,
+  session: string,
+  pod: ConsulPodEntryWithLock,
+  error: any,
+) {
+  consul.kv.set({
+    key: pod.lockKey,
+    value: JSON.stringify({ 
+      error,
+      host: config.name,
+      region: config.region,
+      timestamp: Date.now(),
+    }),
+    release: session,
+  });
+
 }
 
 
