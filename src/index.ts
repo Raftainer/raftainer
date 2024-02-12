@@ -37,10 +37,11 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
 
   // (Re)init pods
   const serviceIds = await Promise.all(launchedPods.map(async pod => {
-    const id = `raftainer:${pod.podEntry.pod.name}:pod`;
+    const id = `raftainer-${pod.podEntry.pod.name}-pod`;
     await consul.agent.service.register({
       id,
-      name: `raftainer:${pod.podEntry.pod.name}`,
+      name: `raftainer-${pod.podEntry.pod.name}`,
+      tags: ['pod', `host-${config.name}`, `region-${config.region}`],
       check: {
         ttl: `${UpdateInterval / 1_000 * 1.2}s`,
       },
@@ -56,7 +57,7 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
   // Clear existing registrations
   const registeredServices: object = await consul.agent.service.list();
   await Promise.all(Object.keys(registeredServices)
-    .filter(name => name.startsWith('raftainer:'))
+    .filter(name => name.startsWith('raftainer'))
     .filter(name => !serviceIds.includes(name))
     .map(service => consul.agent.service.deregister(service)));
 
