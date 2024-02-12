@@ -1,7 +1,7 @@
 {
   "name": "@raftainer/core",
-  "version": "1.0.0",
-  "description": "",
+  "version": "2.0.0",
+  "description": "Runs Raftainer Service",
   "main": "index.js",
   "scripts": {
     "lint": "eslint --fix src/**",

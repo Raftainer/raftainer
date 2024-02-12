@@ -4,7 +4,7 @@ import { logger } from './logger';
 import { Pod, ConsulPodEntry } from '@raftainer/models';
 
 export const HostSessionName = 'Raftainer Host';
-export const RaftainerPodsKey = 'raftainer/pods';
+export const RaftainerPodsKey = 'raftainer/pods/configs';
 
 export interface ConsulPodEntryWithLock extends ConsulPodEntry {
   readonly lockKey: string;
@@ -45,6 +45,7 @@ export async function configureHostSession (consul: Consul.Consul): Promise<stri
 
 export async function getPods (consul: Consul.Consul): Promise<ConsulPodEntry[]> {
   const keys: string[] = await consul.kv.keys(RaftainerPodsKey);
+  logger.info({ keys }, 'All Consul Raftainer keys');
   return await Promise.all(keys.map(async (key: string) => {
     // @ts-expect-error consul API call
     const json: string = (await consul.kv.get(key)).Value;
@@ -56,7 +57,7 @@ async function tryLock(consul: Consul.Consul, session: string, lockKey: string) 
   const lockResult = await consul.kv.set({ 
     key: lockKey, 
     value: JSON.stringify({ 
-      holders: [session],
+      holder: session,
       host: config.name,
       region: config.region,
       timestamp: Date.now(),
@@ -68,30 +69,36 @@ async function tryLock(consul: Consul.Consul, session: string, lockKey: string) 
 
 }
 
+function getLockKey(podName: string, index: Number): string {
+  return `raftainer/pods/locks/${podName}/${index}.lock`;
+}
+
 export async function tryLockPod(
   consul: Consul.Consul, 
   session: string, 
   podLocks: PodLock,
   pod: ConsulPodEntry,
 ): Promise<ConsulPodEntryWithLock | null> {
-  logger.info('Attempting to lock pod %s', pod.pod.name);
+  logger.info({ pod }, 'Attempting to lock pod');
 
   // Try to use existing lock key, iff it would not violate the current `maxInstances` count
   let lockKey = podLocks[pod.pod.name];
-  if(lockKey && lockKey < `${pod.key}/hosts/${pod.pod.maxInstances}/.lock`) {
+  if(lockKey && lockKey < getLockKey(pod.pod.name, pod.pod.maxInstances)) {
     const lockResult = await tryLock(consul, session, lockKey);
     if(lockResult) {
       logger.info('Got lock %s for pod %s', lockKey, pod.pod.name);
       return { ...pod, lockKey, };
     }
+  } else {
+    logger.debug({ lockKey }, 'Skipping lock key');
   }
 
   for(let i = 0; i < pod.pod.maxInstances; i++) {
-    lockKey = `${pod.key}/hosts/${i}/.lock`;
+    lockKey = getLockKey(pod.pod.name, i);
     logger.debug('Attempting to lock key %s', lockKey);
     const lockResult = await tryLock(consul, session, lockKey);
     if(lockResult) {
-      logger.info('Got lock %d for pod %s', lockKey, pod.pod.name);
+      logger.info('Got lock %s for pod %s', lockKey, pod.pod.name);
       return { ...pod, lockKey };
     }
   }

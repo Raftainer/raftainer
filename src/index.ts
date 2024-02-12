@@ -1,7 +1,7 @@
 import Docker from 'dockerode';
 import Consul from 'consul';
 import { logger } from './logger';
-import { configureHostSession, getPods, tryLockPod, ConsulPodEntryWithLock, PodLock, } from './consul';
+import { configureHostSession, getPods, tryLockPod, ConsulPodEntryWithLock, PodLock, RaftainerPodsKey } from './consul';
 import { launchPodContainers, stopOrphanedContainers } from './containers';
 import { ConsulPodEntry } from '@raftainer/models';
 import { config } from './config';
@@ -13,6 +13,7 @@ const UpdateInterval = 10_000;
 async function syncPods(consul: Consul.Consul, docker: Docker, session: string) {
   logger.info('Syncing pods', { session });
   const podEntries: ConsulPodEntry[] = await getPods(consul);
+
   logger.debug('Full list of pods',  { podEntries });
   const lockedPods: ConsulPodEntryWithLock[] = (await Promise.all(podEntries.map(async podEntry => tryLockPod(consul, session, podLocks, podEntry))))
     .filter(elem => elem !== null)
@@ -88,6 +89,20 @@ async function syncPods(consul: Consul.Consul, docker: Docker, session: string) 
 
   const session: string = await configureHostSession(consul);
   syncPods(consul, docker, session);
+
+  const configWatch = consul.watch({
+    method: consul.kv.get,
+    options: {
+      key: RaftainerPodsKey,
+      //@ts-ignore
+      recurse: true,
+    }
+  });
+  configWatch.on('change', (change) => {
+    logger.debug({ change }, 'Config changed');
+    syncPods(consul, docker, session);
+  });
+
   setInterval(() => syncPods(consul, docker, session), UpdateInterval);
 
 })().catch(err => {
