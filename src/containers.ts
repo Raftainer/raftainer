@@ -112,22 +112,31 @@ async function launchPodContainer(
     );
     await docker.getContainer(existingContainerInfo.Id).remove({ force: true });
   }
+  let env: string[] = [];
+  if(containerConfig.environment !== undefined) {
+    env = Object.keys(containerConfig.environment).map(
+      // @ts-ignore
+      (k) => `${k}=${containerConfig.environment[k]}`,
+    );
+
+  }
   const container = await docker.createContainer({
     name: containerName,
     Image: containerConfig.image,
-    Env: Object.keys(containerConfig.environment).map(
-      (k) => `${k}=${containerConfig.environment[k]}`,
-    ),
+    Env: env,
+    Entrypoint: containerConfig.entrypoint,
+    Cmd: containerConfig.command,
     HostConfig: {
+      CapAdd: containerConfig.capAdd || [],
       RestartPolicy: { Name: getRestartPolicy(containerConfig.containerType) },
-      PortBindings: containerConfig.ports.reduce((obj, port) => {
+      PortBindings: (containerConfig.ports || []).reduce((obj, port) => {
         // @ts-expect-error calling Docker API
         obj[`${port.containerPort}/${getDockerProtocol(port)}`] = [
           { HostPort: String(port.containerPort) },
         ];
         return obj;
       }, {}),
-      Binds: containerConfig.localVolumes.map(
+      Binds: (containerConfig.localVolumes || []).map(
         (v) => `${v.hostPath}:${v.containerPath}:${v.mode}`,
       ),
       NetworkMode: networks.primary.id,
@@ -137,6 +146,16 @@ async function launchPodContainer(
       PodContainerName: containerConfig.name,
       OrchestratorName,
       ConfigHash: configHash,
+    },
+    NetworkingConfig: {
+      EndpointsConfig: {
+        [networks.primary.id]: {
+          Aliases: [
+            containerName,
+            containerConfig.name,
+          ],
+        },
+      }
     },
   });
   logger.debug({ containerConfig, container }, "Created container");
