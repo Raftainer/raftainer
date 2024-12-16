@@ -9,6 +9,7 @@ import {
   ContainerType,
 } from "@raftainer/models";
 import { ContainerInfo } from "dockerode";
+import { PodNetworks } from "./networks";
 
 export function getDockerProtocol(port: ExposedPort): string {
   switch (port.protocol) {
@@ -59,6 +60,7 @@ function getHash(item: string): string {
 
 async function launchPodContainer(
   docker: Docker,
+  networks: PodNetworks,
   existingContainers: ExistingContainers,
   podEntry: ConsulPodEntry,
   containerConfig: Container,
@@ -128,6 +130,7 @@ async function launchPodContainer(
       Binds: containerConfig.localVolumes.map(
         (v) => `${v.hostPath}:${v.containerPath}:${v.mode}`,
       ),
+      NetworkMode: networks.primary.id,
     },
     Labels: {
       PodName: podEntry.pod.name,
@@ -150,6 +153,7 @@ export interface PodEntryWithContainers extends ConsulPodEntry {
 
 export async function launchPodContainers(
   docker: Docker,
+  networks: PodNetworks,
   podEntry: ConsulPodEntry,
 ): Promise<PodEntryWithContainers> {
   const existingContainers = await getExistingContainers(docker);
@@ -159,6 +163,7 @@ export async function launchPodContainers(
       async (containerConfig) =>
         await launchPodContainer(
           docker,
+          networks,
           existingContainers,
           podEntry,
           containerConfig,
@@ -184,7 +189,7 @@ export async function stopOrphanedContainers(
       container
         .remove({ force: true })
         .catch((error) =>
-          logger.error("Failed to delete container", { error }),
+          logger.error({ error }, "Failed to delete container"),
         );
     }
   });

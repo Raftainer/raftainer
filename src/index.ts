@@ -13,6 +13,7 @@ import {
 import { launchPodContainers, stopOrphanedContainers } from "./containers";
 import { ConsulPodEntry } from "@raftainer/models";
 import { config } from "./config";
+import { launchPodNetworks, stopOrphanedNetworks } from "./networks";
 
 const podLocks: PodLock = {};
 
@@ -45,12 +46,14 @@ async function syncPods(
   const launchedPods = await Promise.all(
     lockedPods.map(async (podEntry) => {
       try {
+        const networks = await launchPodNetworks(docker, podEntry);
         const { launchedContainers } = await launchPodContainers(
           docker,
+          networks,
           podEntry,
         );
         logger.info("Launched pod %s", podEntry.pod.name);
-        return { podEntry, launchedContainers };
+        return { podEntry, launchedContainers, networks };
       } catch (error) {
         return { podEntry, error };
       }
@@ -102,10 +105,11 @@ async function syncPods(
   }
 
   // Deregister old pods
-  await stopOrphanedContainers(
-    docker,
-    new Set(successfulPods.map((pod) => pod.podEntry.pod.name)),
+  const successfulPodNames = new Set(
+    successfulPods.map((pod) => pod.podEntry.pod.name),
   );
+  await stopOrphanedContainers(docker, successfulPodNames);
+  await stopOrphanedNetworks(docker, successfulPodNames);
 }
 
 (async function main() {
