@@ -60,6 +60,7 @@ function getHash(item: string): string {
 
 async function launchPodContainer(
   docker: Docker,
+  vaultSecrets: Record<string, string>,
   networks: PodNetworks,
   existingContainers: ExistingContainers,
   podEntry: ConsulPodEntry,
@@ -114,11 +115,13 @@ async function launchPodContainer(
   }
   let env: string[] = [];
   if(containerConfig.environment !== undefined) {
-    env = Object.keys(containerConfig.environment).map(
-      // @ts-ignore
-      (k) => `${k}=${containerConfig.environment[k]}`,
-    );
-
+    for(const [k,v] of Object.entries(containerConfig.environment)) {
+      if(typeof v === 'string') {
+        env.push(`${k}=${v}`);
+      } else if('vaultKey' in v) {
+        env.push(`${k}=${vaultSecrets[v.vaultKey]}`);
+      }
+    }
   }
   const container = await docker.createContainer({
     name: containerName,
@@ -172,6 +175,7 @@ export interface PodEntryWithContainers extends ConsulPodEntry {
 
 export async function launchPodContainers(
   docker: Docker,
+  vaultSecrets: Record<string, string>,
   networks: PodNetworks,
   podEntry: ConsulPodEntry,
 ): Promise<PodEntryWithContainers> {
@@ -182,6 +186,7 @@ export async function launchPodContainers(
       async (containerConfig) =>
         await launchPodContainer(
           docker,
+          vaultSecrets,
           networks,
           existingContainers,
           podEntry,

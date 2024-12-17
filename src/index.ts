@@ -14,6 +14,9 @@ import { launchPodContainers, stopOrphanedContainers } from "./containers";
 import { ConsulPodEntry } from "@raftainer/models";
 import { config } from "./config";
 import { launchPodNetworks, stopOrphanedNetworks } from "./networks";
+import { Vault } from "./vault";
+
+const vault = new Vault();
 
 const podLocks: PodLock = {};
 
@@ -46,9 +49,11 @@ async function syncPods(
   const launchedPods = await Promise.all(
     lockedPods.map(async (podEntry) => {
       try {
+        const vaultSecrets: Record<string, string> = await vault.kvRead(`raftainer/${podEntry.pod.name}`);
         const networks = await launchPodNetworks(docker, podEntry);
         const { launchedContainers } = await launchPodContainers(
           docker,
+          vaultSecrets,
           networks,
           podEntry,
         );
