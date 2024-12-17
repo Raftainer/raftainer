@@ -7,3 +7,5 @@ TAG=`node -e "console.log(require('./package.json').version);"`
 
 docker build -t $IMAGE:$TAG .
 docker push $IMAGE:$TAG
+docker tag $IMAGE:$TAG $IMAGE:latest
+docker push $IMAGE:latest
