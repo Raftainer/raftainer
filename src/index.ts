@@ -49,8 +49,11 @@ async function syncPods(
   const launchedPods = await Promise.all(
     lockedPods.map(async (podEntry) => {
       try {
+        logger.trace({ podEntry }, "Loading vault secrets");
         const vaultSecrets: Record<string, string> = await vault.kvRead(`raftainer/${podEntry.pod.name}`);
+        logger.trace({ podEntry }, "Loaded vault secrets");
         const networks = await launchPodNetworks(docker, podEntry);
+        logger.trace({ podEntry, networks, }, "Launched pod networks");
         const { launchedContainers } = await launchPodContainers(
           docker,
           vaultSecrets,
@@ -60,6 +63,7 @@ async function syncPods(
         logger.info("Launched pod %s", podEntry.pod.name);
         return { podEntry, launchedContainers, networks };
       } catch (error) {
+        logger.error({ error, podEntry, }, 'Failed to laucnh pod');
         return { podEntry, error };
       }
     }),
@@ -83,7 +87,7 @@ async function syncPods(
           note: String(pod.error),
         });
       } else {
-        console.log("Marking service healthy", id);
+        logger.info({ id }, "Marking service healthy");
         await consul.agent.check.pass(`service:${id}`);
       }
       return id;

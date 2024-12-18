@@ -1,6 +1,8 @@
 import vault from 'node-vault';
+import { logger } from './logger';
 
 export class Vault {
+  private loggingIn?: Promise<void>;
   private readonly vc;
 
   constructor() {
@@ -12,19 +14,26 @@ export class Vault {
 
   private async login() {
     if(this.vc.token) {
-      console.log('Using cached credentials');
+      logger.debug('Using cached vault credentials');
       return;
     }
-    console.log('Generating new token');
-    const result = await this.vc.approleLogin({
-      role_id: process.env.VAULT_ROLE_ID,
-      secret_id: process.env.VAULT_SECRET_ID,
-    });
-    this.vc.token = result.auth.client_token;
-    setTimeout(() => {
-      //@ts-ignore
-      this.vc.token = undefined;
-    },result.auth.lease_duration * 1_000);
+    if(!this.loggingIn) {
+      this.loggingIn = new Promise(async (resolve) => {
+        logger.debug('Generating new vault token');
+        const result = await this.vc.approleLogin({
+          role_id: process.env.VAULT_ROLE_ID,
+          secret_id: process.env.VAULT_SECRET_ID,
+        });
+        this.vc.token = result.auth.client_token;
+        setTimeout(() => {
+          //@ts-ignore
+          this.vc.token = undefined;
+        },(result.auth.lease_duration - 10) * 1_000);
+        resolve();
+        this.loggingIn = undefined;
+      });
+    } 
+    await this.loggingIn;
 
   }
 
@@ -33,7 +42,7 @@ export class Vault {
     await this.login();
     try {
       const { data: { data } } = await this.vc.read(fullPath);
-      console.log("Loaded secret from path", fullPath);
+      logger.info({ fullPath }, "Loaded secret from path");
       return data;
     } catch (error) {
       if(String(error).includes('404')) {
