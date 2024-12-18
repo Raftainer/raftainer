@@ -10,6 +10,7 @@ import {
 } from "@raftainer/models";
 import { ContainerInfo } from "dockerode";
 import { PodNetworks } from "./networks";
+import { config } from "./config";
 
 export function getDockerProtocol(port: ExposedPort): string {
   switch (port.protocol) {
@@ -69,6 +70,7 @@ async function launchPodContainer(
   await docker.pull(containerConfig.image);
   const containerName = `${podEntry.pod.name}.${containerConfig.name}`;
   const configHash = getHash(JSON.stringify(containerConfig));
+  logger.debug({ configHash, containerConfig }, "Created config hash");
   const existingContainerInfo = existingContainers[containerName];
   try {
     if (existingContainerInfo !== undefined) {
@@ -123,6 +125,29 @@ async function launchPodContainer(
       }
     }
   }
+
+  const portBindings = (containerConfig.ports || []).reduce((obj, port) => {
+    const bindings = [];
+    if(port.portType === 'Internal') {
+      bindings.push(
+          { 
+            HostIp: config.internalIp,
+            HostPort: String(port.internalPort) 
+          },
+      );
+    } else if (port.portType === 'External') {
+      bindings.push(
+          { HostPort: String(port.externalPort) },
+      );
+    } else {
+      return obj;
+    }
+    // @ts-expect-error calling Docker API
+    obj[`${port.containerPort}/${getDockerProtocol(port)}`] = bindings;
+    return obj;
+  }, {});
+
+  logger.info({ containerName, portBindings}, "Created port bindings");
   const container = await docker.createContainer({
     name: containerName,
     Image: containerConfig.image,
@@ -132,13 +157,7 @@ async function launchPodContainer(
     HostConfig: {
       CapAdd: containerConfig.capAdd || [],
       RestartPolicy: { Name: getRestartPolicy(containerConfig.containerType) },
-      PortBindings: (containerConfig.ports || []).reduce((obj, port) => {
-        // @ts-expect-error calling Docker API
-        obj[`${port.containerPort}/${getDockerProtocol(port)}`] = [
-          { HostPort: String(port.containerPort) },
-        ];
-        return obj;
-      }, {}),
+      PortBindings: portBindings,
       Binds: (containerConfig.localVolumes || []).map(
         (v) => `${v.hostPath}:${v.containerPath}:${v.mode}`,
       ),

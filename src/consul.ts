@@ -157,3 +157,27 @@ export async function releasePod(
     release: session,
   });
 }
+
+/**
+ * Remove local Consul Service registrations for Raftainer pods that are no longer
+ * deployed to the current host.
+ */
+export async function deregisterServices(consul: Consul.Consul, activeServiceIds: string[]) {
+  const registeredServices: object = await consul.agent.service.list();
+  logger.info({ registeredServices }, "Loaded registered Consul services");
+  const servicesToDeregister = new Set(
+    Object.entries(registeredServices)
+      .filter(([_, metadata]) => metadata.Tags.includes("raftainer"))
+      .filter(([id,]) => !activeServiceIds.includes(id))
+      .map(([id,]) => id)
+  );
+  logger.info({ 
+    servicesToDeregister,
+  }, 'Deregistering services');
+  await Promise.all(Array.from(servicesToDeregister)
+      .map((id) => consul.agent.service.deregister(id).catch(err => {
+        logger.error({ id, err }, 'Failed to deregister service');
+      })),
+  );
+
+}

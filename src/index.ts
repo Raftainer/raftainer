@@ -9,6 +9,7 @@ import {
   PodLock,
   RaftainerPodsKey,
   releasePod,
+  deregisterServices,
 } from "./consul";
 import { launchPodContainers, stopOrphanedContainers } from "./containers";
 import { ConsulPodEntry } from "@raftainer/models";
@@ -75,8 +76,8 @@ async function syncPods(
       const id = `raftainer-${pod.podEntry.pod.name}-pod`;
       await consul.agent.service.register({
         id,
-        name: `raftainer-${pod.podEntry.pod.name}`,
-        tags: ["pod", `host-${config.name}`, `region-${config.region}`],
+        name: pod.podEntry.pod.name,
+        tags: ["raftainer", "pod", `host-${config.name}`, `region-${config.region}`],
         check: {
           ttl: `${(UpdateInterval / 1_000) * 1.2}s`,
         },
@@ -95,13 +96,7 @@ async function syncPods(
   );
 
   // Clear existing registrations
-  const registeredServices: object = await consul.agent.service.list();
-  await Promise.all(
-    Object.keys(registeredServices)
-      .filter((name) => name.startsWith("raftainer"))
-      .filter((name) => !serviceIds.includes(name))
-      .map((service) => consul.agent.service.deregister(service)),
-  );
+  await deregisterServices(consul, serviceIds);
 
   const successfulPods = launchedPods.filter(({ error }) => !error);
   const failedPods = launchedPods.filter(({ error }) => error);
