@@ -132,7 +132,7 @@ async function launchPodContainer(
     if(port.portType === 'Internal') {
       bindings.push(
         { 
-          HostIp: config.internalIp,
+          HostIp: config.secureIp,
           HostPort: String(port.internalPort) 
         },
       );
