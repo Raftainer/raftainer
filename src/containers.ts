@@ -156,6 +156,7 @@ async function launchPodContainer(
     Entrypoint: containerConfig.entrypoint,
     Cmd: containerConfig.command,
     HostConfig: {
+      ShmSize: 2147483648, //2gb
       CapAdd: containerConfig.capAdd || [],
       RestartPolicy: { Name: getRestartPolicy(containerConfig.containerType) },
       PortBindings: portBindings,
