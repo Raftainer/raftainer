@@ -123,6 +123,12 @@ async function launchPodContainer(
         env.push(`${k}=${v}`);
       } else if('vaultKey' in v) {
         env.push(`${k}=${vaultSecrets[v.vaultKey]}`);
+      } else if('ip' in v) {
+        switch (v.ip) {
+          case 'secure':
+            env.push(`${k}=${config.secureIp}`);
+            break;
+        }
       }
     }
   }
