@@ -14,6 +14,7 @@
   "devDependencies": {
     "@types/consul": "^0.40.3",
     "@types/dockerode": "^3.3.23",
+    "@types/request": "^2.48.12",
     "@typescript-eslint/eslint-plugin": "^6.20.0",
     "eslint": "^8.56.0",
     "eslint-config-standard-with-typescript": "^43.0.1",
@@ -31,6 +32,7 @@
     "consul": "^1.2.0",
     "dockerode": "^4.0.2",
     "node-vault": "^0.10.2",
-    "pino": "^8.18.0"
+    "pino": "^8.18.0",
+    "request": "^2.88.2"
   }
 }

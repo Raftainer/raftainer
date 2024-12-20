@@ -1,4 +1,4 @@
-import Docker, { Network, NetworkInspectInfo } from "dockerode";
+import Docker, { Network, NetworkInspectInfo, NetworkListOptions } from "dockerode";
 import { logger } from "./logger";
 import { ConsulPodEntry, OrchestratorName } from "@raftainer/models";
 
@@ -10,7 +10,7 @@ async function getExistingNetworks(docker: Docker): Promise<ExistingNetworks> {
     filters: {
       label: [`OrchestratorName=${OrchestratorName}`],
     },
-  });
+  } as NetworkListOptions);
 
   return existingNetworks.reduce(
     (obj: ExistingNetworks, network: NetworkInspectInfo) => {
