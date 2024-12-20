@@ -1,3 +1,5 @@
-import Pino from "pino";
+import Pino from 'pino';
 
-export const logger = Pino({});
+export const logger = Pino({
+  level: 'trace',
+});

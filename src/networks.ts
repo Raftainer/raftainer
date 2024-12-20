@@ -1,6 +1,6 @@
-import Docker, { Network, NetworkInspectInfo, NetworkListOptions } from "dockerode";
-import { logger } from "./logger";
-import { ConsulPodEntry, OrchestratorName } from "@raftainer/models";
+import Docker, { Network, NetworkInspectInfo, NetworkListOptions } from 'dockerode';
+import { logger } from './logger';
+import { ConsulPodEntry, OrchestratorName } from '@raftainer/models';
 
 type ExistingNetworks = { [name: string]: Network };
 
@@ -22,7 +22,7 @@ async function getExistingNetworks(docker: Docker): Promise<ExistingNetworks> {
 }
 
 async function createNetwork(docker: Docker, name: string): Promise<Network> {
-  logger.info({ name }, "Creating docker network");
+  logger.info({ name }, 'Creating docker network');
   return await docker.createNetwork({
     Name: name,
     CheckDuplicate: true,
@@ -33,7 +33,7 @@ async function createNetwork(docker: Docker, name: string): Promise<Network> {
 }
 
 async function deleteNetwork(_: Docker, network: Network) {
-  logger.info({ id: network.id }, "Removing network");
+  logger.info({ id: network.id }, 'Removing network');
   await network.remove({
     force: true,
   });
@@ -53,7 +53,9 @@ export async function launchPodNetworks(
 ): Promise<PodNetworks> {
   const networkName = getNetworkName(podEntry.pod.name);
   const existingNetworks = await getExistingNetworks(docker);
+  logger.info({ networkName, existingNetworks: Object.keys(existingNetworks) }, 'Existing networks');
   if (existingNetworks[networkName]) {
+    logger.info({ networkName }, 'Re-using existing network');
     //TODO: update network settings as needed
     return { primary: existingNetworks[networkName] };
   }
@@ -76,9 +78,9 @@ export async function stopOrphanedNetworks(
       try {
         await deleteNetwork(docker, network);
       } catch (error) {
-        logger.warn({ name, error }, "Unable to delete orphaned network");
+        logger.warn({ name, error }, 'Unable to delete orphaned network');
       }
     }
   }
-  logger.info("Removed orphaned networks");
+  logger.info('Removed orphaned networks');
 }

@@ -42,7 +42,7 @@ export class Vault {
     await this.login();
     try {
       const { data: { data } } = await this.vc.read(fullPath);
-      logger.info({ fullPath }, "Loaded secret from path");
+      logger.info({ fullPath }, 'Loaded secret from path');
       return data;
     } catch (error) {
       if(String(error).includes('404')) {
