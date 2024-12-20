@@ -161,6 +161,7 @@ async function launchPodContainer(
     Env: env,
     Entrypoint: containerConfig.entrypoint,
     Cmd: containerConfig.command,
+    ExposedPorts: Object.keys(portBindings).reduce((obj, binding) => ({ ...obj, [binding]: {} }), {}),
     HostConfig: {
       ShmSize: 2147483648, //2gb
       CapAdd: containerConfig.capAdd || [],
