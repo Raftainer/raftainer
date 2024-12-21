@@ -41,7 +41,7 @@ export async function configureHostSession(
       lockdelay: '10s',
     })
   ).ID;
-  logger.info(`Created consul session: ${session}`);
+  logger.debug(`Created consul session: ${session}`);
 
   setInterval(async () => {
     // @ts-expect-error consul API call
@@ -68,7 +68,7 @@ export async function getPods(
   consul: Consul.Consul,
 ): Promise<ConsulPodEntry[]> {
   const keys: string[] = await consul.kv.keys(RaftainerPodsKey);
-  logger.info({ keys }, 'All Consul Raftainer keys');
+  logger.debug({ keys }, 'All Consul Raftainer keys');
   return await Promise.all(
     keys.map(async (key: string) => {
       // @ts-expect-error consul API call
@@ -108,14 +108,14 @@ export async function tryLockPod(
   podLocks: PodLock,
   pod: ConsulPodEntry,
 ): Promise<ConsulPodEntryWithLock | null> {
-  logger.info({ pod }, 'Attempting to lock pod');
+  logger.debug({ pod }, 'Attempting to lock pod');
 
   // Try to use existing lock key, iff it would not violate the current `maxInstances` count
   let lockKey = podLocks[pod.pod.name];
   if (lockKey && lockKey < getLockKey(pod.pod.name, pod.pod.maxInstances)) {
     const lockResult = await tryLock(consul, session, lockKey);
     if (lockResult) {
-      logger.info('Got lock %s for pod %s', lockKey, pod.pod.name);
+      logger.debug('Got lock %s for pod %s', lockKey, pod.pod.name);
       return { ...pod, lockKey };
     }
   } else {
@@ -127,11 +127,11 @@ export async function tryLockPod(
     logger.debug('Attempting to lock key %s', lockKey);
     const lockResult = await tryLock(consul, session, lockKey);
     if (lockResult) {
-      logger.info('Got lock %s for pod %s', lockKey, pod.pod.name);
+      logger.debug('Got lock %s for pod %s', lockKey, pod.pod.name);
       return { ...pod, lockKey };
     }
   }
-  logger.info('Did not get lock for pod %s', pod.pod.name);
+  logger.debug('Did not get lock for pod %s', pod.pod.name);
 
   return null;
 }
@@ -164,14 +164,14 @@ export async function releasePod(
  */
 export async function deregisterServices(consul: Consul.Consul, activeServiceIds: string[]) {
   const registeredServices: object = await consul.agent.service.list();
-  logger.info({ registeredServices }, 'Loaded registered Consul services');
+  logger.debug({ registeredServices }, 'Loaded registered Consul services');
   const servicesToDeregister = new Set(
     Object.entries(registeredServices)
       .filter(([_, metadata]) => metadata.Tags.includes('raftainer'))
       .filter(([id,]) => !activeServiceIds.includes(id))
       .map(([id,]) => id)
   );
-  logger.info({ 
+  logger.debug({ 
     servicesToDeregister,
   }, 'Deregistering services');
   await Promise.all(Array.from(servicesToDeregister)

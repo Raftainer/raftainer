@@ -26,7 +26,7 @@ export class Vault {
         });
         this.vc.token = result.auth.client_token;
         setTimeout(() => {
-          //@ts-ignore
+          // @ts-expect-error
           this.vc.token = undefined;
         },(result.auth.lease_duration - 10) * 1_000);
         resolve();
