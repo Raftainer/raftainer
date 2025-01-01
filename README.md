@@ -1,40 +1,26 @@
 # Consul Docker Cluster
 
-Basic Requirements:
+## Overview
 
-- Docker Image
-- Environment Variables
-- Volumes
-  - Local Mount Points (e.g. for cache, persistent state, copied configs)
-  - Remote Mount Points (e.g. for settings)
-- Ports
-  - Protocol
-  - Bind IP (should be interpolated with env vars/configs)
-  - Description
-- Restart Policy
+Raftainer is a moddable Docker orchestrator built on Consul and Vault. It allows for the deployment, management, and orchestration of Docker containers across a cluster of nodes with support for various features such as service registration, event handling, and network management.
 
-Additional Features:
+## How It Works
 
-- Pod
-  - Pod Name
-  - Connected Containers
-  - Allowed Nodes
-  - Allowed regions (JFK, IAD)
-  - Max Instances
-  - IP Range?
-- Consul Service Registration (register at pod level)
-- Local HTTP Gateway
-- Cloudflare HTTP Gateway
-- Auth
-- Event Bus (kafka)
-  - Register ephemeral containers to event types (e.g. different AI containers for different AI requests)
-  - Perhaps this could be managed within a pod, one event bus per pod?
+Raftainer uses Docker for container management, Consul for service discovery and configuration, and Vault for secret management. The orchestrator handles the following key tasks:
 
-Steps: 
+* Network Management:
+  * Creates and manages Docker networks for pods.
+  * Reuses existing networks where possible.
+  * Cleans up orphaned networks.
 
-1. Deployment only: spin up a docker container using the provided config(s)
-2. Semaphores: use consul semaphores to enforce max hosts
-3. Registration: register containers/ports as K/V instances
-4. K/V Configuration: load the container settings from Consul K/V
-   1. Create new
-   2. Remove old
+* Container Management:
+  * Launches containers with specified configurations.
+  * Manages container lifecycle, including creation, startup, and removal.
+  * Handles port bindings and volume mounts.
+
+* Service Registration:
+  * Registers services with Consul for discovery.
+  * Updates service configurations dynamically.
+
+* Secret Management:
+  * Integrates with Vault to securely manage and distribute secrets to containers.
