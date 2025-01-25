@@ -16,12 +16,15 @@ import { ConsulPodEntry } from '@raftainer/models';
 import { config } from './config';
 import { launchPodNetworks, stopOrphanedNetworks } from './networks';
 import { Vault } from './vault';
+import { ConstraintMatcher } from './constraint-matcher';
 
 const vault = new Vault();
 
 const podLocks: PodLock = {};
 
 const UpdateInterval = 10_000;
+
+const constraintMatcher = new ConstraintMatcher();
 
 let syncing = false;
 
@@ -38,9 +41,13 @@ let syncing = false;
 async function lockPods(podEntries: ConsulPodEntry[], consul: Consul.Consul, session: string) {
   const lockedPods: ConsulPodEntryWithLock[] = (
     await Promise.all(
-      podEntries.map(async (podEntry) =>
-        tryLockPod(consul, session, podLocks, podEntry),
-      ),
+      podEntries.map(async (podEntry) => {
+        if(!constraintMatcher.meetsConstraints(podEntry)) {
+          console.log('Host does not meet pod constraints', { podEntry });
+          return null;
+        }
+        return tryLockPod(consul, session, podLocks, podEntry);
+      }),
     )
   )
     .filter((elem) => elem !== null)
@@ -160,7 +167,7 @@ async function syncPods(
       }
     }
 
-    const serviceIds = await registerPods(consul, successfulPods);
+    await registerPods(consul, successfulPods);
 
     // Deregister old pods
     const successfulPodNames = new Set(

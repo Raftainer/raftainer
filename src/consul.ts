@@ -2,6 +2,7 @@ import Consul from 'consul';
 import { config } from './config';
 import { logger } from './logger';
 import { Pod, ConsulPodEntry } from '@raftainer/models';
+import { ConstraintMatcher } from './constraint-matcher';
 
 export const HostSessionName = 'Raftainer Host';
 export const RaftainerPodsKey = 'raftainer/pods/configs';

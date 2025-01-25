@@ -155,6 +155,14 @@ async function launchPodContainer(
   }, {});
 
   logger.info({ containerName, portBindings}, 'Created port bindings');
+  const deviceRequests = [];
+  if(containerConfig.hardwareConstraints?.gpus !== undefined) {
+    deviceRequests.push({
+      Driver: 'nvidia',
+      Count: -1, // Number of GPUs to assign; use -1 for all available GPUs
+      Capabilities: [['gpu']],
+    });
+  }
   const container = await docker.createContainer({
     name: containerName,
     Image: containerConfig.image,
@@ -171,6 +179,7 @@ async function launchPodContainer(
         (v) => `${v.hostPath}:${v.containerPath}:${v.mode}`,
       ),
       NetworkMode: networks.primary.id,
+      DeviceRequests: deviceRequests,
     },
     Labels: {
       PodName: podEntry.pod.name,

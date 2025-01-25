@@ -28,11 +28,12 @@
   },
   "dependencies": {
     "@litehex/node-vault": "^1.0.1",
-    "@raftainer/models": "^0.0.14",
+    "@raftainer/models": "^0.0.18",
     "consul": "^1.2.0",
     "dockerode": "^4.0.2",
     "node-vault": "^0.10.2",
     "pino": "^8.18.0",
-    "request": "^2.88.2"
+    "request": "^2.88.2",
+    "systeminformation": "^5.25.11"
   }
 }
