@@ -111,7 +111,7 @@ async function registerPods(consul: Consul.Consul, launchedPods: any[]): Promise
         name: pod.podEntry.pod.name,
         tags: ['raftainer', 'pod', `host-${config.name}`, `region-${config.region}`],
         check: {
-          ttl: `${(UpdateInterval / 1_000) * 1.2}s`,
+          ttl: `${(UpdateInterval / 1_000) * 5}s`,
         },
       });
       if (pod.error) {

@@ -2,7 +2,6 @@ import Consul from 'consul';
 import { config } from './config';
 import { logger } from './logger';
 import { Pod, ConsulPodEntry } from '@raftainer/models';
-import { ConstraintMatcher } from './constraint-matcher';
 
 export const HostSessionName = 'Raftainer Host';
 export const RaftainerPodsKey = 'raftainer/pods/configs';
@@ -38,7 +37,7 @@ export async function configureHostSession(
     await consul.session.create({
       name: HostSessionName,
       node: config.name,
-      ttl: '30s',
+      ttl: '90s',
       lockdelay: '10s',
     })
   ).ID;
@@ -172,13 +171,15 @@ export async function deregisterServices(consul: Consul.Consul, activeServiceIds
       .filter(([id,]) => !activeServiceIds.includes(id))
       .map(([id,]) => id)
   );
-  logger.debug({ 
-    servicesToDeregister,
-  }, 'Deregistering services');
-  await Promise.all(Array.from(servicesToDeregister)
-    .map((id) => consul.agent.service.deregister(id).catch(err => {
-      logger.error({ id, err }, 'Failed to deregister service');
-    })),
-  );
+  if(servicesToDeregister.size > 0) {
+    logger.info({ 
+      servicesToDeregister,
+    }, 'Deregistering services');
+    await Promise.all(Array.from(servicesToDeregister)
+      .map((id) => consul.agent.service.deregister(id).catch(err => {
+        logger.error({ id, err }, 'Failed to deregister service');
+      })),
+    );
+  }
 
 }
