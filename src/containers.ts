@@ -11,6 +11,7 @@ import {
 import { ContainerInfo } from 'dockerode';
 import { PodNetworks } from './networks';
 import { config } from './config';
+import { Vault } from './vault';
 
 export function getDockerProtocol(port: ExposedPort): string {
   switch (port.protocol) {
@@ -61,7 +62,7 @@ function getHash(item: string): string {
 
 async function launchPodContainer(
   docker: Docker,
-  vaultSecrets: Record<string, string>,
+  vault: Vault,
   networks: PodNetworks,
   existingContainers: ExistingContainers,
   podEntry: ConsulPodEntry,
@@ -90,17 +91,17 @@ async function launchPodContainer(
           existingContainerInfo.State !== 'running' &&
           containerConfig.containerType !== ContainerType.PodStartup
         ) {
-          //TODO: perhaps it makes more sense to re-create the container?
           logger.debug(
             { containerName, existingContainerInfo },
-            'Re-starting existing container',
+            'Existing container is not running, killing it.',
           );
-          await existingContainer.start();
+          await existingContainer.remove({ force: true });
+        } else {
+          return {
+            container: await existingContainer.inspect(),
+            config: containerConfig,
+          };
         }
-        return {
-          container: await existingContainer.inspect(),
-          config: containerConfig,
-        };
       }
       logger.debug({ existingContainerInfo }, 'Removing existing container');
       await existingContainer.remove({ force: true });
@@ -116,11 +117,21 @@ async function launchPodContainer(
     );
     await docker.getContainer(existingContainerInfo.Id).remove({ force: true });
   }
+  let containerTTL: number | undefined;
   const env: string[] = [];
   if(containerConfig.environment !== undefined) {
+    const vaultDatabaseRoles: Record<string, { username: string, password: string }> = {};
+    const vaultSecrets: Record<string, string> = await vault.kvRead(`raftainer/${podEntry.pod.name}`);
     for(const [k,v] of Object.entries(containerConfig.environment)) {
       if(typeof v === 'string') {
         env.push(`${k}=${v}`);
+      } else if ('vaultDatabaseRole' in v) {
+        if(!vaultDatabaseRoles[v.vaultDatabaseRole]) {
+          const { username, password, ttl } = (await vault.getDbCredentials(v.vaultDatabaseRole));
+          vaultDatabaseRoles[v.vaultDatabaseRole] = { username, password };
+          containerTTL = Math.min(ttl, containerTTL ?? ttl);
+        }
+        env.push(`${k}=${vaultDatabaseRoles[v.vaultDatabaseRole][v.loginField]}`);
       } else if('vaultKey' in v) {
         env.push(`${k}=${vaultSecrets[v.vaultKey]}`);
       } else if('ip' in v) {
@@ -175,9 +186,7 @@ async function launchPodContainer(
       CapAdd: containerConfig.capAdd || [],
       RestartPolicy: { Name: getRestartPolicy(containerConfig.containerType) },
       PortBindings: portBindings,
-      Binds: (containerConfig.localVolumes || []).map(
-        (v) => `${v.hostPath}:${v.containerPath}:${v.mode}`,
-      ),
+      Binds: (containerConfig.localVolumes || []).map((v) => `${v.hostPath}:${v.containerPath}:${v.mode}`),
       NetworkMode: networks.primary.id,
       DeviceRequests: deviceRequests,
     },
@@ -186,6 +195,8 @@ async function launchPodContainer(
       PodContainerName: containerConfig.name,
       OrchestratorName,
       ConfigHash: configHash,
+      TTL: String(containerTTL ?? -1),
+      StartTime: String(Date.now()),
     },
     NetworkingConfig: {
       EndpointsConfig: {
@@ -212,7 +223,7 @@ export interface PodEntryWithContainers extends ConsulPodEntry {
 
 export async function launchPodContainers(
   docker: Docker,
-  vaultSecrets: Record<string, string>,
+  vault: Vault,
   networks: PodNetworks,
   podEntry: ConsulPodEntry,
 ): Promise<PodEntryWithContainers> {
@@ -223,7 +234,7 @@ export async function launchPodContainers(
     launchedContainers.push(
       await launchPodContainer(
         docker,
-        vaultSecrets,
+        vault,
         networks,
         existingContainers,
         podEntry,

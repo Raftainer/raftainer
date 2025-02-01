@@ -12,7 +12,7 @@ export class Vault {
     });
   }
 
-  private async login() {
+  async login() {
     if(this.vc.token) {
       logger.debug('Using cached vault credentials');
       return;
@@ -50,5 +50,10 @@ export class Vault {
       }
       throw error;
     }
+  }
+
+  async getDbCredentials(role: string): Promise<{username: string, password: string, ttl: number}> {
+    const { lease_duration: ttl, data: { username, password } } = await this.vc.read(`database/creds/${role}`);
+    return { ttl, username, password };
   }
 }

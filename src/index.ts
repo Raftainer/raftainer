@@ -74,13 +74,11 @@ async function launchPods(lockedPods: ConsulPodEntryWithLock[], docker: Docker) 
   for(const podEntry of lockedPods) {
     try {
       logger.trace({ podEntry }, 'Loading vault secrets');
-      const vaultSecrets: Record<string, string> = await vault.kvRead(`raftainer/${podEntry.pod.name}`);
-      logger.trace({ podEntry }, 'Loaded vault secrets');
       const networks = await launchPodNetworks(docker, podEntry);
       logger.trace({ podEntry, networks, }, 'Launched pod networks');
       const { launchedContainers } = await launchPodContainers(
         docker,
-        vaultSecrets,
+        vault,
         networks,
         podEntry,
       );
