@@ -17,16 +17,17 @@ import { config } from './config';
 import { launchPodNetworks, stopOrphanedNetworks } from './networks';
 import { Vault } from './vault';
 import { ConstraintMatcher } from './constraint-matcher';
+import { Mutex } from 'async-mutex';
+import { TTLCache } from './ttlCache';
 
 const vault = new Vault();
 
 const podLocks: PodLock = {};
+const failedPods = new TTLCache<string, string>(5 * 60 * 1000); // 5 minutes TTL for failed pods
 
 const UpdateInterval = 10_000;
 
 const constraintMatcher = new ConstraintMatcher();
-
-let syncing = false;
 
 /**
  * Tries to get Consul locks for available pods, then returns the list of pods
@@ -43,7 +44,11 @@ async function lockPods(podEntries: ConsulPodEntry[], consul: Consul.Consul, ses
     await Promise.all(
       podEntries.map(async (podEntry) => {
         if(!constraintMatcher.meetsConstraints(podEntry)) {
-          console.log('Host does not meet pod constraints', { podEntry });
+          logger.info({ podEntry }, 'Host does not meet pod constraints');
+          return null;
+        }
+        if (failedPods.get(podEntry.pod.name)) {
+          logger.warn({ podEntry }, 'Skipping failed pod');
           return null;
         }
         return tryLockPod(consul, session, podLocks, podEntry);
@@ -70,8 +75,7 @@ async function lockPods(podEntries: ConsulPodEntry[], consul: Consul.Consul, ses
  * @returns List of launched pods
  */
 async function launchPods(lockedPods: ConsulPodEntryWithLock[], docker: Docker) {
-  const launchedPods = [];
-  for(const podEntry of lockedPods) {
+  const launchedPods = Promise.all(lockedPods.map(async (podEntry) => {
     try {
       logger.trace({ podEntry }, 'Loading vault secrets');
       const networks = await launchPodNetworks(docker, podEntry);
@@ -83,12 +87,13 @@ async function launchPods(lockedPods: ConsulPodEntryWithLock[], docker: Docker) 
         podEntry,
       );
       logger.debug('Launched pod %s', podEntry.pod.name);
-      launchedPods.push({ podEntry, launchedContainers, networks });
+      return { podEntry, launchedContainers, networks };
     } catch (error) {
+      failedPods.set(podEntry.pod.name, String(error));
       logger.error({ error, podEntry, }, 'Failed to launch pod');
-      launchedPods.push({ podEntry, error });
+      return { podEntry, error };
     }
-  }
+  }));
 
   return launchedPods;
 }
@@ -101,7 +106,7 @@ async function launchPods(lockedPods: ConsulPodEntryWithLock[], docker: Docker) 
  * @returns List of service IDs
  */
 async function registerPods(consul: Consul.Consul, launchedPods: any[]): Promise<string[]> {
-  const serviceIds = await Promise.all(
+  const serviceIds: string[] = (await Promise.all(
     launchedPods.map(async (pod) => {
       const id = `raftainer-${pod.podEntry.pod.name}-pod`;
       await consul.agent.service.register({
@@ -109,10 +114,11 @@ async function registerPods(consul: Consul.Consul, launchedPods: any[]): Promise
         name: pod.podEntry.pod.name,
         tags: ['raftainer', 'pod', `host-${config.name}`, `region-${config.region}`],
         check: {
-          ttl: `${(UpdateInterval / 1_000) * 5}s`,
+          ttl: `${(UpdateInterval / 1_000) * 10}s`,
         },
       });
       if (pod.error) {
+        logger.warn({ id, error: pod.error }, 'Marking service unhealthy');
         await consul.agent.check.fail({
           id: `service:${id}`,
           note: String(pod.error),
@@ -122,11 +128,15 @@ async function registerPods(consul: Consul.Consul, launchedPods: any[]): Promise
         await consul.agent.check.pass(`service:${id}`);
       }
       return id;
-    }),
-  );
+    }).map(promise => promise.catch(err => {
+      logger.error({ err }, 'Failed to launch pod');
+      return null;
+    })),
+  )).filter(a => a !== null);
 
   // Clear existing registrations for pods that are no longer launched
   await deregisterServices(consul, serviceIds);
+  logger.info('Synced services', { serviceIds });
 
   return serviceIds;
 
@@ -144,38 +154,31 @@ async function syncPods(
   docker: Docker,
   session: string,
 ) {
-  if(syncing) {
-    return;
-  }
-  syncing = true;
-  try {
-    logger.info('Syncing pods', { session });
-    const podEntries: ConsulPodEntry[] = await getPods(consul);
-    logger.debug('Locking pods', { podEntries });
-    const lockedPods = await lockPods(podEntries, consul, session);
-    const launchedPods = await launchPods(lockedPods, docker);
+  logger.info('Syncing pods', { session });
+  const podEntries: ConsulPodEntry[] = await getPods(consul);
+  logger.debug('Locking pods', { podEntries });
+  const lockedPods = await lockPods(podEntries, consul, session);
+  const launchedPods = await launchPods(lockedPods, docker);
 
-    const successfulPods = launchedPods.filter(({ error }) => !error);
-    const failedPods = launchedPods.filter(({ error }) => error);
+  const successfulPods = launchedPods.filter(({ error }) => !error);
+  const failedPods = launchedPods.filter(({ error }) => error);
 
-    if (failedPods.length > 0) {
-      logger.error({ failedPods }, 'Failed to launch all pods');
-      for (const { podEntry, error } of failedPods) {
-        await releasePod(consul, session, podEntry, error);
-      }
+  if (failedPods.length > 0) {
+    logger.error({ failedPods }, 'Failed to launch all pods');
+    for (const { podEntry, error } of failedPods) {
+      await releasePod(consul, session, podEntry, error);
     }
-
-    await registerPods(consul, successfulPods);
-
-    // Deregister old pods
-    const successfulPodNames = new Set(
-      successfulPods.map((pod) => pod.podEntry.pod.name),
-    );
-    await stopOrphanedContainers(docker, successfulPodNames);
-    await stopOrphanedNetworks(docker, successfulPodNames);
-  } finally {
-    syncing = false;
   }
+
+  await registerPods(consul, successfulPods);
+
+  // Deregister old pods
+  const successfulPodNames = new Set(
+    successfulPods.map((pod) => pod.podEntry.pod.name),
+  );
+  await stopOrphanedContainers(docker, successfulPodNames);
+  await stopOrphanedNetworks(docker, successfulPodNames);
+  logger.info('Sync complete', { session, successfulPodNames, failedPods });
 }
 
 (async function main() {
@@ -195,7 +198,6 @@ async function syncPods(
   await docker.pruneNetworks({});
 
   const session: string = await configureHostSession(consul);
-  syncPods(consul, docker, session);
 
   const configWatch = consul.watch({
     method: consul.kv.get,
@@ -205,12 +207,19 @@ async function syncPods(
       recurse: true,
     },
   });
+
+  // Only sync one at a time
+  const syncMutex = new Mutex();
+
   configWatch.on('change', (change) => {
-    logger.debug({ change }, 'Config changed');
-    syncPods(consul, docker, session);
+    logger.info({ change }, 'Config changed');
+    syncMutex.runExclusive(() => syncPods(consul, docker, session));
   });
 
-  setInterval(() => syncPods(consul, docker, session), UpdateInterval);
+  while(true) {
+    await syncMutex.runExclusive(async () => await syncPods(consul, docker, session));
+    await new Promise(resolve => setTimeout(resolve, UpdateInterval));
+  }
 })().catch((err) => {
   logger.error(`Service crashed: ${err}`);
 });

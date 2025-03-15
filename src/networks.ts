@@ -55,7 +55,7 @@ export async function launchPodNetworks(
   const existingNetworks = await getExistingNetworks(docker);
   logger.info({ networkName, existingNetworks: Object.keys(existingNetworks) }, 'Existing networks');
   if (existingNetworks[networkName]) {
-    logger.info({ networkName }, 'Re-using existing network');
+    logger.debug({ networkName }, 'Re-using existing network');
     //TODO: update network settings as needed
     return { primary: existingNetworks[networkName] };
   }
@@ -73,14 +73,20 @@ export async function stopOrphanedNetworks(
     Array.from(activePodNames).map((podName) => getNetworkName(podName)),
   );
   const existingNetworks = await getExistingNetworks(docker);
+  const deletedNetworks: string[] = [];
   for (const [name, network] of Object.entries(existingNetworks)) {
     if (!expectedNetworkNames.has(name)) {
       try {
         await deleteNetwork(docker, network);
+        deletedNetworks.push(name);
       } catch (error) {
         logger.warn({ name, error }, 'Unable to delete orphaned network');
       }
     }
   }
-  logger.info('Removed orphaned networks');
+  if(deletedNetworks.length > 0) {
+    logger.info({ deletedNetworks }, 'Removed orphaned networks');
+  }
+  return deletedNetworks;
+
 }
