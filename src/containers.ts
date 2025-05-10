@@ -13,6 +13,11 @@ import { PodNetworks } from './networks';
 import { config } from './config';
 import { Vault } from './vault';
 
+/**
+ * Converts Raftainer port protocol to Docker protocol format
+ * @param port Port configuration with protocol
+ * @returns Docker protocol string ('tcp' or 'udp')
+ */
 export function getDockerProtocol(port: ExposedPort): string {
   switch (port.protocol) {
   case 'UDP':
@@ -47,6 +52,11 @@ async function getExistingContainers(
   return existingContainers;
 }
 
+/**
+ * Determines the Docker restart policy based on container type
+ * @param containerType Type of container (PodStartup or LongRunning)
+ * @returns Docker restart policy string
+ */
 function getRestartPolicy(containerType: ContainerType): string {
   switch (containerType) {
   case ContainerType.PodStartup:
@@ -56,6 +66,11 @@ function getRestartPolicy(containerType: ContainerType): string {
   }
 }
 
+/**
+ * Generates an MD5 hash of the provided string
+ * @param item String to hash
+ * @returns MD5 hash as a hex string
+ */
 function getHash(item: string): string {
   return createHash('md5').update(item).digest('hex');
 }

@@ -1,5 +1,9 @@
 import { SystemConfig, HostConfig } from '@raftainer/models';
 
+/**
+ * Configuration object that combines system and host configuration
+ * Loads values from environment variables
+ */
 export const config: SystemConfig & HostConfig = {
   name: process.env.HOSTNAME!,
   region: process.env.RAFTAINER_REGION!,

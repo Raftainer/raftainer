@@ -6,11 +6,21 @@ export class TTLCache<K, V> {
     this.ttl = ttl;
   }
 
+  /**
+   * Stores a value in the cache with the specified key
+   * @param key The key to store the value under
+   * @param value The value to store
+   */
   set(key: K, value: V) {
     const expiresAt = Date.now() + this.ttl;
     this.cache.set(key, { value, expiresAt });
   }
 
+  /**
+   * Retrieves a value from the cache by key
+   * @param key The key to look up
+   * @returns The stored value if found and not expired, null otherwise
+   */
   get(key: K): V | null {
     const entry = this.cache.get(key);
     if (entry) {
@@ -23,10 +33,17 @@ export class TTLCache<K, V> {
     return null;
   }
 
+  /**
+   * Removes an entry from the cache
+   * @param key The key to remove
+   */
   delete(key: K) {
     this.cache.delete(key);
   }
 
+  /**
+   * Removes all entries from the cache
+   */
   clear() {
     this.cache.clear();
   }

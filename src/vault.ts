@@ -12,6 +12,10 @@ export class Vault {
     });
   }
 
+  /**
+   * Authenticates with Vault using AppRole credentials
+   * Caches the token and handles automatic token refresh
+   */
   async login() {
     if(this.vc.token) {
       logger.debug('Using cached vault credentials');
@@ -37,6 +41,11 @@ export class Vault {
 
   }
 
+  /**
+   * Reads secrets from Vault's KV store
+   * @param path Path to the secret in Vault (without kv/data/ prefix)
+   * @returns Object containing key-value pairs of secrets
+   */
   async kvRead(path: string): Promise<Record<string, string>> {
     const fullPath = `kv/data/${path}`;
     await this.login();
@@ -52,6 +61,11 @@ export class Vault {
     }
   }
 
+  /**
+   * Generates dynamic database credentials from Vault
+   * @param role Database role to generate credentials for
+   * @returns Object containing username, password and TTL in seconds
+   */
   async getDbCredentials(role: string): Promise<{username: string, password: string, ttl: number}> {
     const { lease_duration: ttl, data: { username, password } } = await this.vc.read(`database/creds/${role}`);
     return { ttl, username, password };

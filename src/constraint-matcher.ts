@@ -6,6 +6,11 @@ import si, { Systeminformation } from 'systeminformation';
  */
 export class ConstraintMatcher {
 
+  /**
+   * Checks if the host system meets the GPU constraints specified by the pod
+   * @param pod Pod entry to check constraints for
+   * @returns True if constraints are met, false otherwise
+   */
   private async meetsGpuConstraints(pod: ConsulPodEntry) {
     const { controllers: gpus }: Systeminformation.GraphicsData = await si.graphics();
 
@@ -20,6 +25,11 @@ export class ConstraintMatcher {
     }
   }
 
+  /**
+   * Checks if the host system meets all hardware constraints for a pod
+   * @param pod Pod entry to check constraints for
+   * @returns True if all constraints are met, false otherwise
+   */
   async meetsConstraints(pod: ConsulPodEntry) {
     return await this.meetsGpuConstraints(pod);
   }

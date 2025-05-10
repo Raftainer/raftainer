@@ -10,6 +10,9 @@ export interface ConsulPodEntryWithLock extends ConsulPodEntry {
   readonly lockKey: string;
 }
 
+/**
+ * Maps pod names to their lock keys in Consul
+ */
 export type PodLock = { [podName: string]: string };
 
 // Mark the host as online
@@ -97,6 +100,12 @@ async function tryLock(
   return lockResult;
 }
 
+/**
+ * Generates a Consul lock key for a specific pod and instance index
+ * @param podName Name of the pod
+ * @param index Instance index of the pod
+ * @returns Formatted lock key string
+ */
 function getLockKey(podName: string, index: number): string {
   return `raftainer/pods/locks/${podName}/${index}.lock`;
 }
