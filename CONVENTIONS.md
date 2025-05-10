@@ -1,0 +1,4 @@
+- Run `npm run build` to test changes
+- Run `npx prettier -w src` to format code
+- Make sure that code is tested and formatted before committing
+- Group similar commits together
