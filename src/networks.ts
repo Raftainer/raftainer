@@ -49,10 +49,21 @@ async function createNetwork(docker: Docker, name: string): Promise<Network> {
  * @param network Network object to remove
  */
 async function deleteNetwork(_: Docker, network: Network) {
-  logger.info({ id: network.id }, 'Removing network');
-  await network.remove({
-    force: true,
-  });
+  try {
+    logger.info({ id: network.id }, 'Removing network');
+    await network.remove({
+      force: true,
+    });
+    logger.debug({ id: network.id }, 'Successfully removed network');
+  } catch (error) {
+    logger.error({ 
+      id: network.id, 
+      error: error,
+      message: error.message,
+      stack: error.stack
+    }, 'Failed to remove network');
+    throw error; // Re-throw to allow caller to handle
+  }
 }
 
 export interface PodNetworks {
@@ -90,24 +101,64 @@ export async function stopOrphanedNetworks(
   docker: Docker,
   activePodNames: Set<string>,
 ) {
-  const expectedNetworkNames: Set<string> = new Set(
-    Array.from(activePodNames).map((podName) => getNetworkName(podName)),
-  );
-  const existingNetworks = await getExistingNetworks(docker);
-  const deletedNetworks: string[] = [];
-  for (const [name, network] of Object.entries(existingNetworks)) {
-    if (!expectedNetworkNames.has(name)) {
-      try {
-        await deleteNetwork(docker, network);
-        deletedNetworks.push(name);
-      } catch (error) {
-        logger.warn({ name, error }, 'Unable to delete orphaned network');
+  try {
+    const expectedNetworkNames: Set<string> = new Set(
+      Array.from(activePodNames).map((podName) => getNetworkName(podName)),
+    );
+    logger.debug({ 
+      expectedNetworkNames: Array.from(expectedNetworkNames),
+      activePodCount: activePodNames.size
+    }, 'Checking for orphaned networks');
+    
+    const existingNetworks = await getExistingNetworks(docker);
+    logger.debug({ 
+      existingNetworkCount: Object.keys(existingNetworks).length,
+      existingNetworks: Object.keys(existingNetworks)
+    }, 'Found existing networks');
+    
+    const deletedNetworks: string[] = [];
+    const failedDeletions: {name: string, error: any}[] = [];
+    
+    for (const [name, network] of Object.entries(existingNetworks)) {
+      if (!expectedNetworkNames.has(name)) {
+        try {
+          logger.debug({ name, id: network.id }, 'Attempting to delete orphaned network');
+          await deleteNetwork(docker, network);
+          deletedNetworks.push(name);
+        } catch (error) {
+          failedDeletions.push({ name, error });
+          logger.warn({ 
+            name, 
+            id: network.id,
+            error: error,
+            message: error.message,
+            stack: error.stack
+          }, 'Unable to delete orphaned network');
+        }
       }
     }
+    
+    if(deletedNetworks.length > 0) {
+      logger.info({ 
+        deletedNetworks, 
+        count: deletedNetworks.length 
+      }, 'Removed orphaned networks');
+    }
+    
+    if(failedDeletions.length > 0) {
+      logger.warn({ 
+        failedDeletions: failedDeletions.map(f => f.name),
+        count: failedDeletions.length
+      }, 'Some networks could not be deleted');
+    }
+    
+    return deletedNetworks;
+  } catch (error) {
+    logger.error({ 
+      error: error,
+      message: error.message,
+      stack: error.stack
+    }, 'Error stopping orphaned networks');
+    return [];
   }
-  if(deletedNetworks.length > 0) {
-    logger.info({ deletedNetworks }, 'Removed orphaned networks');
-  }
-  return deletedNetworks;
-
 }

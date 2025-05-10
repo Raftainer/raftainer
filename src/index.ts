@@ -40,30 +40,76 @@ const constraintMatcher = new ConstraintMatcher();
  * @returns List of pods that were successfully locked
  */
 async function lockPods(podEntries: ConsulPodEntry[], consul: Consul.Consul, session: string) {
-  const lockedPods: ConsulPodEntryWithLock[] = (
-    await Promise.all(
+  try {
+    logger.debug({ podCount: podEntries.length }, 'Attempting to lock pods');
+    
+    const lockResults = await Promise.all(
       podEntries.map(async (podEntry) => {
-        if(!constraintMatcher.meetsConstraints(podEntry)) {
-          logger.info({ podEntry }, 'Host does not meet pod constraints');
+        try {
+          if(!await constraintMatcher.meetsConstraints(podEntry)) {
+            logger.info({ 
+              podName: podEntry.pod.name,
+              constraints: podEntry.pod.containers
+                .flatMap(c => c.hardwareConstraints?.gpus || [])
+            }, 'Host does not meet pod constraints');
+            return null;
+          }
+          
+          const failureReason = failedPods.get(podEntry.pod.name);
+          if (failureReason) {
+            logger.warn({ 
+              podName: podEntry.pod.name, 
+              failureReason 
+            }, 'Skipping previously failed pod');
+            return null;
+          }
+          
+          logger.debug({ podName: podEntry.pod.name }, 'Attempting to lock pod');
+          const result = await tryLockPod(consul, session, podLocks, podEntry);
+          if (result) {
+            logger.debug({ 
+              podName: podEntry.pod.name,
+              lockKey: result.lockKey
+            }, 'Successfully locked pod');
+          } else {
+            logger.debug({ podName: podEntry.pod.name }, 'Failed to lock pod');
+          }
+          return result;
+        } catch (error) {
+          logger.error({ 
+            podName: podEntry.pod.name,
+            error: error,
+            message: error.message,
+            stack: error.stack
+          }, 'Error while trying to lock pod');
           return null;
         }
-        if (failedPods.get(podEntry.pod.name)) {
-          logger.warn({ podEntry }, 'Skipping failed pod');
-          return null;
-        }
-        return tryLockPod(consul, session, podLocks, podEntry);
       }),
-    )
-  )
-    .filter((elem) => elem !== null)
-    .map((elem) => elem as ConsulPodEntryWithLock);
-  logger.debug('Acquired pods', { podEntries, session });
+    );
+    
+    const lockedPods: ConsulPodEntryWithLock[] = lockResults
+      .filter((elem) => elem !== null)
+      .map((elem) => elem as ConsulPodEntryWithLock);
+      
+    logger.info({ 
+      lockedPodCount: lockedPods.length,
+      lockedPods: lockedPods.map(p => p.pod.name),
+      session 
+    }, 'Acquired pods');
 
-  for (const lockedPod of lockedPods) {
-    podLocks[lockedPod.pod.name] = lockedPod.lockKey;
+    for (const lockedPod of lockedPods) {
+      podLocks[lockedPod.pod.name] = lockedPod.lockKey;
+    }
+
+    return lockedPods;
+  } catch (error) {
+    logger.error({ 
+      error: error,
+      message: error.message,
+      stack: error.stack
+    }, 'Error locking pods');
+    return [];
   }
-
-  return lockedPods;
 }
 
 /**
@@ -154,31 +200,85 @@ async function syncPods(
   docker: Docker,
   session: string,
 ) {
-  logger.info('Syncing pods', { session });
-  const podEntries: ConsulPodEntry[] = await getPods(consul);
-  logger.debug('Locking pods', { podEntries });
-  const lockedPods = await lockPods(podEntries, consul, session);
-  const launchedPods = await launchPods(lockedPods, docker);
+  const syncStartTime = Date.now();
+  logger.info('Starting pod synchronization', { session });
+  
+  try {
+    // Get all pod definitions from Consul
+    const podEntries: ConsulPodEntry[] = await getPods(consul);
+    logger.debug({ podCount: podEntries.length }, 'Retrieved pod definitions from Consul');
+    
+    // Try to lock pods that this host can run
+    const lockedPods = await lockPods(podEntries, consul, session);
+    logger.debug({ 
+      lockedPodCount: lockedPods.length,
+      lockedPods: lockedPods.map(p => p.pod.name)
+    }, 'Locked pods for this host');
+    
+    // Launch the pods we've locked
+    const launchedPods = await launchPods(lockedPods, docker);
+    
+    // Separate successful and failed pod launches
+    const successfulPods = launchedPods.filter(({ error }) => !error);
+    const failedPods = launchedPods.filter(({ error }) => error);
+    
+    logger.info({ 
+      successCount: successfulPods.length,
+      failCount: failedPods.length,
+      successfulPods: successfulPods.map(p => p.podEntry.pod.name),
+      failedPods: failedPods.map(p => p.podEntry.pod.name)
+    }, 'Pod launch results');
 
-  const successfulPods = launchedPods.filter(({ error }) => !error);
-  const failedPods = launchedPods.filter(({ error }) => error);
-
-  if (failedPods.length > 0) {
-    logger.error({ failedPods }, 'Failed to launch all pods');
-    for (const { podEntry, error } of failedPods) {
-      await releasePod(consul, session, podEntry, error);
+    if (failedPods.length > 0) {
+      logger.error({ 
+        failedPods: failedPods.map(p => ({
+          name: p.podEntry.pod.name,
+          error: p.error
+        }))
+      }, 'Failed to launch some pods');
+      
+      // Release locks for failed pods
+      for (const { podEntry, error } of failedPods) {
+        logger.debug({ 
+          podName: podEntry.pod.name,
+          error
+        }, 'Releasing lock for failed pod');
+        await releasePod(consul, session, podEntry, error);
+      }
     }
+
+    // Register successful pods with Consul
+    const registeredServiceIds = await registerPods(consul, successfulPods);
+    logger.debug({ 
+      registeredCount: registeredServiceIds.length,
+      serviceIds: registeredServiceIds
+    }, 'Registered services in Consul');
+
+    // Clean up orphaned resources
+    const successfulPodNames = new Set(
+      successfulPods.map((pod) => pod.podEntry.pod.name),
+    );
+    
+    await stopOrphanedContainers(docker, successfulPodNames);
+    await stopOrphanedNetworks(docker, successfulPodNames);
+    
+    const syncDuration = Date.now() - syncStartTime;
+    logger.info('Sync complete', { 
+      session, 
+      successfulPodCount: successfulPodNames.size,
+      successfulPods: Array.from(successfulPodNames),
+      failedPodCount: failedPods.length,
+      durationMs: syncDuration
+    });
+  } catch (error) {
+    const syncDuration = Date.now() - syncStartTime;
+    logger.error({ 
+      error: error,
+      message: error.message,
+      stack: error.stack,
+      durationMs: syncDuration
+    }, 'Error during pod synchronization');
   }
-
-  await registerPods(consul, successfulPods);
-
-  // Deregister old pods
-  const successfulPodNames = new Set(
-    successfulPods.map((pod) => pod.podEntry.pod.name),
-  );
-  await stopOrphanedContainers(docker, successfulPodNames);
-  await stopOrphanedNetworks(docker, successfulPodNames);
-  logger.info('Sync complete', { session, successfulPodNames, failedPods });
 }
 
 (async function main() {

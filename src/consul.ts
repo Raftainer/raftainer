@@ -155,16 +155,25 @@ export async function releasePod(
   pod: ConsulPodEntryWithLock,
   error: any,
 ) {
-  consul.kv.set({
-    key: pod.lockKey,
-    value: JSON.stringify({
-      error,
-      host: config.name,
-      region: config.region,
-      timestamp: Date.now(),
-    }),
-    release: session,
-  });
+  try {
+    await consul.kv.set({
+      key: pod.lockKey,
+      value: JSON.stringify({
+        error: typeof error === 'object' ? JSON.stringify(error) : String(error),
+        host: config.name,
+        region: config.region,
+        timestamp: Date.now(),
+      }),
+      release: session,
+    });
+    logger.info({ podName: pod.pod.name, lockKey: pod.lockKey }, 'Successfully released pod lock');
+  } catch (releaseError) {
+    logger.error({ 
+      podName: pod.pod.name, 
+      lockKey: pod.lockKey, 
+      error: releaseError 
+    }, 'Failed to release pod lock');
+  }
 }
 
 /**
@@ -172,23 +181,38 @@ export async function releasePod(
  * deployed to the current host.
  */
 export async function deregisterServices(consul: Consul.Consul, activeServiceIds: string[]) {
-  const registeredServices: object = await consul.agent.service.list();
-  logger.debug({ registeredServices }, 'Loaded registered Consul services');
-  const servicesToDeregister = new Set(
-    Object.entries(registeredServices)
-      .filter(([_, metadata]) => metadata.Tags.includes('raftainer'))
-      .filter(([id,]) => !activeServiceIds.includes(id))
-      .map(([id,]) => id)
-  );
-  if(servicesToDeregister.size > 0) {
-    logger.info({ 
-      servicesToDeregister,
-    }, 'Deregistering services');
-    await Promise.all(Array.from(servicesToDeregister)
-      .map((id) => consul.agent.service.deregister(id).catch(err => {
-        logger.error({ id, err }, 'Failed to deregister service');
-      })),
+  try {
+    const registeredServices: object = await consul.agent.service.list();
+    logger.debug({ registeredServices }, 'Loaded registered Consul services');
+    const servicesToDeregister = new Set(
+      Object.entries(registeredServices)
+        .filter(([_, metadata]) => metadata.Tags.includes('raftainer'))
+        .filter(([id,]) => !activeServiceIds.includes(id))
+        .map(([id,]) => id)
     );
+    if(servicesToDeregister.size > 0) {
+      logger.info({ 
+        servicesToDeregister,
+        activeCount: activeServiceIds.length,
+      }, 'Deregistering services');
+      const results = await Promise.all(Array.from(servicesToDeregister)
+        .map((id) => consul.agent.service.deregister(id).catch(err => {
+          logger.error({ 
+            id, 
+            error: err,
+            message: err.message,
+            stack: err.stack 
+          }, 'Failed to deregister service');
+          return { id, success: false, error: err };
+        }).then(() => ({ id, success: true }))),
+      );
+      logger.debug({ results }, 'Service deregistration results');
+    }
+  } catch (error) {
+    logger.error({ 
+      error: error,
+      message: error.message,
+      stack: error.stack
+    }, 'Error listing or deregistering services');
   }
-
 }

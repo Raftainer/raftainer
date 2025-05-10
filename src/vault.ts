@@ -48,16 +48,33 @@ export class Vault {
    */
   async kvRead(path: string): Promise<Record<string, string>> {
     const fullPath = `kv/data/${path}`;
-    await this.login();
     try {
-      const { data: { data } } = await this.vc.read(fullPath);
-      logger.info({ fullPath }, 'Loaded secret from path');
-      return data;
-    } catch (error) {
-      if(String(error).includes('404')) {
-        return {};
+      await this.login();
+      try {
+        const { data: { data } } = await this.vc.read(fullPath);
+        logger.info({ fullPath }, 'Loaded secret from path');
+        return data;
+      } catch (error) {
+        if(String(error).includes('404')) {
+          logger.debug({ fullPath }, 'Secret not found (404)');
+          return {};
+        }
+        logger.error({ 
+          fullPath, 
+          error: error,
+          message: error.message,
+          stack: error.stack
+        }, 'Error reading secret from Vault');
+        throw error;
       }
-      throw error;
+    } catch (loginError) {
+      logger.error({ 
+        fullPath, 
+        error: loginError,
+        message: loginError.message,
+        stack: loginError.stack
+      }, 'Failed to login to Vault before reading secret');
+      throw loginError;
     }
   }
 
@@ -67,7 +84,29 @@ export class Vault {
    * @returns Object containing username, password and TTL in seconds
    */
   async getDbCredentials(role: string): Promise<{username: string, password: string, ttl: number}> {
-    const { lease_duration: ttl, data: { username, password } } = await this.vc.read(`database/creds/${role}`);
-    return { ttl, username, password };
+    try {
+      await this.login();
+      const path = `database/creds/${role}`;
+      logger.debug({ role, path }, 'Requesting database credentials from Vault');
+      
+      const { lease_duration: ttl, data: { username, password } } = await this.vc.read(path);
+      
+      logger.info({ 
+        role, 
+        username, 
+        ttl,
+        passwordLength: password ? password.length : 0
+      }, 'Successfully retrieved database credentials');
+      
+      return { ttl, username, password };
+    } catch (error) {
+      logger.error({ 
+        role, 
+        error: error,
+        message: error.message,
+        stack: error.stack
+      }, 'Failed to get database credentials from Vault');
+      throw error;
+    }
   }
 }

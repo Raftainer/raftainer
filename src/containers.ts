@@ -263,19 +263,78 @@ export async function stopOrphanedContainers(
   docker: Docker,
   activePodNames: Set<string>,
 ) {
-  const existingContainers = await getExistingContainers(docker);
-  Object.keys(existingContainers).forEach((name) => {
-    const containerInfo = existingContainers[name];
-    // Get the name of the pod associated with the container
-    const podName = containerInfo.Labels['PodName'];
-    if (!activePodNames.has(podName)) {
-      logger.info('Terminating container: %s', containerInfo.Names[0]);
-      const container = docker.getContainer(containerInfo.Id);
-      container
-        .remove({ force: true })
-        .catch((error) =>
-          logger.error({ error }, 'Failed to delete container'),
-        );
+  try {
+    logger.debug({ 
+      activePodCount: activePodNames.size,
+      activePods: Array.from(activePodNames)
+    }, 'Checking for orphaned containers');
+    
+    const existingContainers = await getExistingContainers(docker);
+    logger.debug({ 
+      containerCount: Object.keys(existingContainers).length 
+    }, 'Found existing containers');
+    
+    const containersToRemove = [];
+    const removalResults = [];
+    
+    for (const name of Object.keys(existingContainers)) {
+      const containerInfo = existingContainers[name];
+      // Get the name of the pod associated with the container
+      const podName = containerInfo.Labels['PodName'];
+      
+      if (!activePodNames.has(podName)) {
+        containersToRemove.push({
+          id: containerInfo.Id,
+          name: containerInfo.Names[0],
+          podName
+        });
+        
+        logger.info({ 
+          containerId: containerInfo.Id,
+          containerName: containerInfo.Names[0],
+          podName,
+          state: containerInfo.State
+        }, 'Terminating orphaned container');
+        
+        const container = docker.getContainer(containerInfo.Id);
+        try {
+          await container.remove({ force: true });
+          removalResults.push({
+            id: containerInfo.Id,
+            name: containerInfo.Names[0],
+            success: true
+          });
+        } catch (error) {
+          logger.error({ 
+            containerId: containerInfo.Id,
+            containerName: containerInfo.Names[0],
+            error: error,
+            message: error.message,
+            stack: error.stack
+          }, 'Failed to delete container');
+          
+          removalResults.push({
+            id: containerInfo.Id,
+            name: containerInfo.Names[0],
+            success: false,
+            error: error.message
+          });
+        }
+      }
     }
-  });
+    
+    if (containersToRemove.length > 0) {
+      logger.info({ 
+        removedCount: containersToRemove.length,
+        successCount: removalResults.filter(r => r.success).length,
+        failCount: removalResults.filter(r => !r.success).length
+      }, 'Container cleanup summary');
+    }
+  } catch (error) {
+    logger.error({ 
+      error: error,
+      message: error.message,
+      stack: error.stack
+    }, 'Error stopping orphaned containers');
+  }
 }
