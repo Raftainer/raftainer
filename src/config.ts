@@ -1,4 +1,4 @@
-import { SystemConfig, HostConfig } from '@raftainer/models';
+import { SystemConfig, HostConfig } from "@raftainer/models";
 
 /**
  * Configuration object that combines system and host configuration
@@ -11,9 +11,9 @@ export const config: SystemConfig & HostConfig = {
   internalIp: process.env.RAFTAINER_INTERNAL_IP!,
   consul: {
     host: process.env.RAFTAINER_CONSUL_HOST!,
-    port: Number(process.env.RAFTAINER_CONSUL_PORT || '8500'),
+    port: Number(process.env.RAFTAINER_CONSUL_PORT || "8500"),
   },
   fastStartup: Boolean(
-    JSON.parse(process.env.RAFTAINER_FAST_STARTUP || 'false'),
+    JSON.parse(process.env.RAFTAINER_FAST_STARTUP || "false"),
   ),
 };
