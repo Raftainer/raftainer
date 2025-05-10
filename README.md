@@ -94,6 +94,38 @@ Raftainer follows a distributed architecture with the following major components
    * Failed pods are tracked to prevent continuous restart loops
    * Lock keys include pod name and index for uniqueness
 
+#### Locking Flow Details
+
+1. **Session Establishment**
+   * Each host creates a Consul session with a 90-second TTL
+   * Sessions are renewed every 5 seconds to maintain locks
+   * Sessions include a 10-second lock delay to prevent immediate reacquisition
+   * On host shutdown, sessions are explicitly destroyed to release locks
+
+2. **Pod Lock Acquisition Process**
+   * The system first checks if a pod already has a lock key in the local cache
+   * If a cached lock exists, it attempts to reacquire that specific lock
+   * If no cached lock exists or reacquisition fails, it tries each index from 0 to maxInstances-1
+   * Lock keys follow the pattern `raftainer/pods/locks/{podName}/{index}.lock`
+   * Lock values contain host metadata including hostname, region, and timestamp
+
+3. **Lock Contention Handling**
+   * Hardware constraints are evaluated before attempting to acquire locks
+   * Failed pod deployments are tracked in a TTL cache (5 minutes by default)
+   * Pods in the failure cache are skipped during lock acquisition
+   * When a pod fails to deploy, its lock is explicitly released with error information
+
+4. **Synchronization Cycle**
+   * A mutex ensures only one synchronization process runs at a time
+   * Synchronization occurs on a fixed interval (10 seconds) and on Consul KV changes
+   * During synchronization, the system:
+     * Retrieves all pod definitions from Consul
+     * Attempts to acquire locks for unlocked pods
+     * Launches networks and containers for successfully locked pods
+     * Registers successful pods as services in Consul
+     * Releases locks for failed pod deployments
+     * Cleans up orphaned containers and networks
+
 #### Error Handling and Resilience
 
 1. **Failure Management**
