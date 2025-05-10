@@ -1,6 +1,6 @@
 import { ConsulPodEntry } from '@raftainer/models/dist';
 import si, { Systeminformation } from 'systeminformation';
-import logger from './logger';
+import { logger } from './logger';
 
 /**
  * Checks whether a host system can run a pod, based on hardware constraints
