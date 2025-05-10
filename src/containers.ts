@@ -133,7 +133,11 @@ async function launchPodContainer(
     await docker.getContainer(existingContainerInfo.Id).remove({ force: true });
   }
   let containerTTL: number | undefined;
-  const env: string[] = [];
+  const env: string[] = [
+    `HOSTNAME=${config.name}`,
+    `RAFTAINER_SECURE_IP=${config.secureIp || ""}`,
+    `RAFTAINER_INTERNAL_IP=${config.internalIp || ""}`,
+  ];
   if (containerConfig.environment !== undefined) {
     const vaultDatabaseRoles: Record<
       string,
