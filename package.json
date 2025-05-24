@@ -12,7 +12,6 @@
   "author": "William Rory Kronmiller",
   "license": "ISC",
   "devDependencies": {
-    "@types/consul": "^0.40.3",
     "@types/dockerode": "^3.3.23",
     "@types/request": "^2.48.12",
     "@typescript-eslint/eslint-plugin": "^6.20.0",
@@ -29,12 +28,11 @@
   "dependencies": {
     "@litehex/node-vault": "^1.0.4",
     "@raftainer/models": "^0.0.20",
+    "@wkronmiller/consul": "^2.0.2",
     "async-mutex": "^0.5.0",
-    "consul": "^2.0.1",
     "dockerode": "^4.0.6",
     "node-vault": "^0.10.2",
     "pino": "^9.7.0",
-    "request": "^2.88.2",
     "systeminformation": "^5.27.0"
   }
 }

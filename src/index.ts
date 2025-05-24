@@ -1,5 +1,5 @@
 import Docker from "dockerode";
-import Consul from "consul";
+import Consul from "@wkronmiller/consul";
 import { logger } from "./logger";
 import {
   configureHostSession,
@@ -41,7 +41,7 @@ const constraintMatcher = new ConstraintMatcher();
  */
 async function lockPods(
   podEntries: ConsulPodEntry[],
-  consul: Consul.Consul,
+  consul: Consul,
   session: string,
 ) {
   try {
@@ -183,7 +183,7 @@ async function launchPods(
  * @returns List of service IDs
  */
 async function registerPods(
-  consul: Consul.Consul,
+  consul: Consul,
   launchedPods: any[],
 ): Promise<string[]> {
   const serviceIds: string[] = (
@@ -201,6 +201,8 @@ async function registerPods(
               `region-${config.region}`,
             ],
             check: {
+              name: `raftainer-${pod.podEntry.pod.name}-check`,
+              timeout: `${(UpdateInterval / 1_000) * 10}s`,
               ttl: `${(UpdateInterval / 1_000) * 10}s`,
             },
           });
@@ -240,7 +242,7 @@ async function registerPods(
  * @param session Consul session ID
  */
 async function syncPods(
-  consul: Consul.Consul,
+  consul: Consul,
   docker: Docker,
   session: string,
 ) {
@@ -350,9 +352,9 @@ async function syncPods(
   logger.info("Starting service");
 
   logger.debug("Initializing consul connection");
-  const consul: Consul.Consul = new Consul({
+  const consul: Consul = new Consul({
     host: config.consul.host,
-    port: String(config.consul.port),
+    port: config.consul.port,
   });
 
   logger.debug("Initializing docker connection");

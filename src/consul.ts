@@ -1,4 +1,4 @@
-import Consul from "consul";
+import Consul from "@wkronmiller/consul";
 import { config } from "./config";
 import { logger } from "./logger";
 import { Pod, ConsulPodEntry } from "@raftainer/models";
@@ -17,13 +17,11 @@ export type PodLock = { [podName: string]: string };
 
 // Mark the host as online
 export async function configureHostSession(
-  consul: Consul.Consul,
+  consul: Consul,
 ): Promise<string> {
   if (!config.fastStartup) {
     while (
-      // @ts-expect-error consul API call
       (await consul.session.node(config.name)).find(
-        // @ts-expect-error consul API call
         ({ Name: name }) => name === HostSessionName,
       )
     ) {
@@ -35,7 +33,6 @@ export async function configureHostSession(
       );
     }
   }
-  // @ts-expect-error consul API call
   const session: string = (
     await consul.session.create({
       name: HostSessionName,
@@ -47,7 +44,6 @@ export async function configureHostSession(
   logger.debug(`Created consul session: ${session}`);
 
   setInterval(async () => {
-    // @ts-expect-error consul API call
     const [{ CreateIndex: createIndex, ModifyIndex: modifyIndex }] =
       await consul.session.renew(session);
     logger.trace(
@@ -68,7 +64,7 @@ export async function configureHostSession(
 
 // List all pods
 export async function getPods(
-  consul: Consul.Consul,
+  consul: Consul,
 ): Promise<ConsulPodEntry[]> {
   const keys: string[] = await consul.kv.keys(RaftainerPodsKey);
   logger.debug({ keys }, "All Consul Raftainer keys");
@@ -82,7 +78,7 @@ export async function getPods(
 }
 
 async function tryLock(
-  consul: Consul.Consul,
+  consul: Consul,
   session: string,
   lockKey: string,
 ) {
@@ -112,7 +108,7 @@ function getLockKey(podName: string, index: number): string {
 
 // Try to lock a slot for a pod deployment
 export async function tryLockPod(
-  consul: Consul.Consul,
+  consul: Consul,
   session: string,
   podLocks: PodLock,
   pod: ConsulPodEntry,
@@ -150,7 +146,7 @@ export async function tryLockPod(
  * to launch it.
  */
 export async function releasePod(
-  consul: Consul.Consul,
+  consul: Consul,
   session: string,
   pod: ConsulPodEntryWithLock,
   error: any,
@@ -188,7 +184,7 @@ export async function releasePod(
  * deployed to the current host.
  */
 export async function deregisterServices(
-  consul: Consul.Consul,
+  consul: Consul,
   activeServiceIds: string[],
 ) {
   try {
