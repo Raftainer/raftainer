@@ -4,3 +4,4 @@ tsconfig.tsbuildinfo
 .env
 logs.txt
 .aider*
+coverage/
