@@ -1,26 +1,26 @@
-import { ConstraintMatcher } from '../constraint-matcher';
-import si from 'systeminformation';
-import { logger } from '../logger';
+import { ConstraintMatcher } from "../constraint-matcher";
+import si from "systeminformation";
+import { logger } from "../logger";
 
 // Mock dependencies
-jest.mock('systeminformation');
-jest.mock('../logger', () => ({
+jest.mock("systeminformation");
+jest.mock("../logger", () => ({
   logger: {
     debug: jest.fn(),
     error: jest.fn(),
   },
 }));
 
-describe('ConstraintMatcher', () => {
+describe("ConstraintMatcher", () => {
   let constraintMatcher: ConstraintMatcher;
-  
+
   beforeEach(() => {
     constraintMatcher = new ConstraintMatcher();
     jest.clearAllMocks();
   });
 
-  describe('meetsConstraints', () => {
-    it('should return true when pod has no GPU constraints', async () => {
+  describe("meetsConstraints", () => {
+    it("should return true when pod has no GPU constraints", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [{ hardwareConstraints: { gpus: [] } }],
@@ -35,7 +35,7 @@ describe('ConstraintMatcher', () => {
       expect(si.graphics).toHaveBeenCalled();
     });
 
-    it('should return true when GPU constraints are met', async () => {
+    it("should return true when GPU constraints are met", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [
@@ -46,7 +46,9 @@ describe('ConstraintMatcher', () => {
           },
         ],
       });
-      mockGraphicsData([{ model: 'NVIDIA GeForce RTX 3080', vram: 10000000000 }]);
+      mockGraphicsData([
+        { model: "NVIDIA GeForce RTX 3080", vram: 10000000000 },
+      ]);
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -55,7 +57,7 @@ describe('ConstraintMatcher', () => {
       expect(result).toBe(true);
     });
 
-    it('should return false when GPU count constraint is not met', async () => {
+    it("should return false when GPU count constraint is not met", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [
@@ -66,7 +68,9 @@ describe('ConstraintMatcher', () => {
           },
         ],
       });
-      mockGraphicsData([{ model: 'NVIDIA GeForce RTX 3080', vram: 10000000000 }]);
+      mockGraphicsData([
+        { model: "NVIDIA GeForce RTX 3080", vram: 10000000000 },
+      ]);
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -78,11 +82,11 @@ describe('ConstraintMatcher', () => {
           requiredCount: 2,
           availableCount: 1,
         }),
-        'GPU count constraint not met'
+        "GPU count constraint not met",
       );
     });
 
-    it('should return false when VRAM constraint is not met', async () => {
+    it("should return false when VRAM constraint is not met", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [
@@ -93,7 +97,9 @@ describe('ConstraintMatcher', () => {
           },
         ],
       });
-      mockGraphicsData([{ model: 'NVIDIA GeForce RTX 3080', vram: 10000000000 }]);
+      mockGraphicsData([
+        { model: "NVIDIA GeForce RTX 3080", vram: 10000000000 },
+      ]);
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -105,11 +111,11 @@ describe('ConstraintMatcher', () => {
           requiredVram: 20000000000,
           availableVram: [10000000000],
         }),
-        'GPU VRAM constraint not met'
+        "GPU VRAM constraint not met",
       );
     });
 
-    it('should handle constraints from multiple containers', async () => {
+    it("should handle constraints from multiple containers", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [
@@ -125,7 +131,9 @@ describe('ConstraintMatcher', () => {
           },
         ],
       });
-      mockGraphicsData([{ model: 'NVIDIA GeForce RTX 3080', vram: 10000000000 }]);
+      mockGraphicsData([
+        { model: "NVIDIA GeForce RTX 3080", vram: 10000000000 },
+      ]);
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -134,7 +142,7 @@ describe('ConstraintMatcher', () => {
       expect(result).toBe(true);
     });
 
-    it('should return false when si.graphics throws an error', async () => {
+    it("should return false when si.graphics throws an error", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [
@@ -145,7 +153,7 @@ describe('ConstraintMatcher', () => {
           },
         ],
       });
-      const error = new Error('Graphics information unavailable');
+      const error = new Error("Graphics information unavailable");
       (si.graphics as jest.Mock).mockRejectedValue(error);
 
       // Act
@@ -158,16 +166,18 @@ describe('ConstraintMatcher', () => {
           error,
           message: error.message,
         }),
-        'Error checking GPU constraints'
+        "Error checking GPU constraints",
       );
     });
 
-    it('should handle containers without hardware constraints', async () => {
+    it("should handle containers without hardware constraints", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [{ hardwareConstraints: undefined }],
       });
-      mockGraphicsData([{ model: 'NVIDIA GeForce RTX 3080', vram: 10000000000 }]);
+      mockGraphicsData([
+        { model: "NVIDIA GeForce RTX 3080", vram: 10000000000 },
+      ]);
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -176,7 +186,7 @@ describe('ConstraintMatcher', () => {
       expect(result).toBe(true);
     });
 
-    it('should handle undefined vramBytes in constraints', async () => {
+    it("should handle undefined vramBytes in constraints", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [
@@ -187,7 +197,9 @@ describe('ConstraintMatcher', () => {
           },
         ],
       });
-      mockGraphicsData([{ model: 'NVIDIA GeForce RTX 3080', vram: 10000000000 }]);
+      mockGraphicsData([
+        { model: "NVIDIA GeForce RTX 3080", vram: 10000000000 },
+      ]);
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -196,7 +208,7 @@ describe('ConstraintMatcher', () => {
       expect(result).toBe(true);
     });
 
-    it('should handle undefined vram in GPU data', async () => {
+    it("should handle undefined vram in GPU data", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [
@@ -207,7 +219,7 @@ describe('ConstraintMatcher', () => {
           },
         ],
       });
-      mockGraphicsData([{ model: 'NVIDIA GeForce RTX 3080', vram: undefined }]);
+      mockGraphicsData([{ model: "NVIDIA GeForce RTX 3080", vram: undefined }]);
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -216,7 +228,7 @@ describe('ConstraintMatcher', () => {
       expect(result).toBe(false);
     });
 
-    it('should handle errors in meetsConstraints method', async () => {
+    it("should handle errors in meetsConstraints method", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [
@@ -227,12 +239,14 @@ describe('ConstraintMatcher', () => {
           },
         ],
       });
-      
+
       // Mock implementation to throw error in meetsConstraints
-      const error = new Error('Constraint check failed');
-      jest.spyOn(constraintMatcher as any, 'meetsGpuConstraints').mockImplementation(() => {
-        throw error;
-      });
+      const error = new Error("Constraint check failed");
+      jest
+        .spyOn(constraintMatcher as any, "meetsGpuConstraints")
+        .mockImplementation(() => {
+          throw error;
+        });
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -244,11 +258,11 @@ describe('ConstraintMatcher', () => {
           error,
           message: error.message,
         }),
-        'Error checking hardware constraints'
+        "Error checking hardware constraints",
       );
     });
 
-    it('should handle the case where GPU has vram but constraint.vramBytes is undefined', async () => {
+    it("should handle the case where GPU has vram but constraint.vramBytes is undefined", async () => {
       // Arrange
       const mockPod = createMockPod({
         containers: [
@@ -259,7 +273,9 @@ describe('ConstraintMatcher', () => {
           },
         ],
       });
-      mockGraphicsData([{ model: 'NVIDIA GeForce RTX 3080', vram: 10000000000 }]);
+      mockGraphicsData([
+        { model: "NVIDIA GeForce RTX 3080", vram: 10000000000 },
+      ]);
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -268,7 +284,7 @@ describe('ConstraintMatcher', () => {
       expect(result).toBe(true);
     });
 
-    it('should evaluate the constraint.vramBytes && !gpus.some(...) condition correctly', async () => {
+    it("should evaluate the constraint.vramBytes && !gpus.some(...) condition correctly", async () => {
       // This test specifically targets line 46 to cover that branch
       // We want constraint.vramBytes to be truthy and the gpus.some() to return false
       const mockPod = createMockPod({
@@ -281,7 +297,9 @@ describe('ConstraintMatcher', () => {
         ],
       });
       // Mock with a GPU that has insufficient VRAM to trigger the condition
-      mockGraphicsData([{ model: 'NVIDIA GeForce RTX 3060', vram: 6000000000 }]);
+      mockGraphicsData([
+        { model: "NVIDIA GeForce RTX 3060", vram: 6000000000 },
+      ]);
 
       // Act
       const result = await constraintMatcher.meetsConstraints(mockPod);
@@ -293,7 +311,7 @@ describe('ConstraintMatcher', () => {
           requiredVram: 10000000000,
           availableVram: [6000000000],
         }),
-        'GPU VRAM constraint not met'
+        "GPU VRAM constraint not met",
       );
     });
   });
@@ -302,9 +320,9 @@ describe('ConstraintMatcher', () => {
 // Helper functions
 function createMockPod(overrides: any = {}) {
   return {
-    key: 'test/pod/key',
+    key: "test/pod/key",
     pod: {
-      name: 'test-pod',
+      name: "test-pod",
       containers: [],
       maxInstances: 1,
       ...overrides,

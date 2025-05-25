@@ -16,9 +16,7 @@ export interface ConsulPodEntryWithLock extends ConsulPodEntry {
 export type PodLock = { [podName: string]: string };
 
 // Mark the host as online
-export async function configureHostSession(
-  consul: Consul,
-): Promise<string> {
+export async function configureHostSession(consul: Consul): Promise<string> {
   if (!config.fastStartup) {
     while (
       (await consul.session.node(config.name)).find(
@@ -63,9 +61,7 @@ export async function configureHostSession(
 }
 
 // List all pods
-export async function getPods(
-  consul: Consul,
-): Promise<ConsulPodEntry[]> {
+export async function getPods(consul: Consul): Promise<ConsulPodEntry[]> {
   const keys: string[] = await consul.kv.keys(RaftainerPodsKey);
   logger.debug({ keys }, "All Consul Raftainer keys");
   return await Promise.all(
@@ -77,11 +73,7 @@ export async function getPods(
   );
 }
 
-async function tryLock(
-  consul: Consul,
-  session: string,
-  lockKey: string,
-) {
+async function tryLock(consul: Consul, session: string, lockKey: string) {
   const lockResult = await consul.kv.set({
     key: lockKey,
     value: JSON.stringify({
@@ -192,6 +184,7 @@ export async function deregisterServices(
     logger.debug({ registeredServices }, "Loaded registered Consul services");
     const servicesToDeregister = new Set(
       Object.entries(registeredServices)
+        //.filter(([_, metadata]) => metadata.Tags.includes('raftainer-pod'))
         .filter(([_, metadata]) => metadata.Tags.includes("raftainer"))
         .filter(([id]) => !activeServiceIds.includes(id))
         .map(([id]) => id),
