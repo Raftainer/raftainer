@@ -12,7 +12,12 @@ import {
   deregisterServices,
 } from "./consul";
 import { launchPodContainers, stopOrphanedContainers } from "./containers";
-import { ConsulPodEntry } from "@raftainer/models";
+import {
+  ConsulPodEntry,
+  Container,
+  ExposedPort,
+  TraefikPort,
+} from "@raftainer/models";
 import { config } from "./config";
 import { launchPodNetworks, stopOrphanedNetworks } from "./networks";
 import { Vault } from "./vault";
@@ -151,7 +156,7 @@ async function launchPods(
   docker: Docker,
 ) {
   const launchedPods = Promise.all(
-    lockedPods.map(async (podEntry) => {
+    lockedPods.map(async (podEntry: ConsulPodEntryWithLock) => {
       try {
         logger.trace({ podEntry }, "Loading vault secrets");
         const networks = await launchPodNetworks(docker, podEntry);
@@ -191,6 +196,7 @@ async function registerPods(
       launchedPods
         .map(async (pod) => {
           const id = `raftainer-${pod.podEntry.pod.name}-pod`;
+          // Register Pod with Consul
           await consul.agent.service.register({
             id,
             name: pod.podEntry.pod.name,
@@ -216,6 +222,37 @@ async function registerPods(
             logger.info({ id }, "Marking service healthy");
             await consul.agent.check.pass(`service:${id}`);
           }
+          // Register containers with consul
+          for (const container of pod.podEntry.pod.containers) {
+            for (const port of container.ports || []) {
+              if ("hostname" in port) {
+                const id = `raftainer-${pod.podEntry.pod.name}-${port.name}`;
+                const router = `raftainer-${pod.podEntry.pod.name}-${port.name}-router`;
+                await consul.agent.service.register({
+                  id,
+                  name: id,
+                  address: config.internalIp,
+                  port: port.internalPort,
+                  tags: [
+                    "raftainer",
+                    "container",
+                    `host-${config.name}`,
+                    `region-${config.region}`,
+                    `traefik.enable=true`,
+                    `traefik.http.routers.${router}.rule=Host(\`${port.hostname}\`)`,
+                  ],
+                  check: {
+                    name: `raftainer-${pod.podEntry.pod.name}-${container.name}-check`,
+                    interval: '10s',
+                    timeout: '5s',
+                    tcp: `${config.internalIp}:${port.internalPort}`,
+                    deregistercriticalserviceafter: '1m',
+                  },
+                });
+              }
+            }
+          }
+
           return id;
         })
         .map((promise) =>
@@ -241,11 +278,7 @@ async function registerPods(
  * @param docker Docker client
  * @param session Consul session ID
  */
-async function syncPods(
-  consul: Consul,
-  docker: Docker,
-  session: string,
-) {
+async function syncPods(consul: Consul, docker: Docker, session: string) {
   const syncStartTime = Date.now();
   logger.info("Starting pod synchronization", { session });
 
@@ -335,6 +368,7 @@ async function syncPods(
       durationMs: syncDuration,
     });
   } catch (error) {
+    process.exit(1); //TODO: remove
     const syncDuration = Date.now() - syncStartTime;
     logger.error(
       {
