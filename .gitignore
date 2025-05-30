@@ -5,3 +5,4 @@ tsconfig.tsbuildinfo
 logs.txt
 .aider*
 coverage/
+debug.log
