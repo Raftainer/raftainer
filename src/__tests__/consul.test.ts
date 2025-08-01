@@ -292,6 +292,37 @@ describe("consul", () => {
       });
     });
 
+    it("should reuse lock key when maxInstances has two digits", async () => {
+      // Arrange
+      const existingLockKey = "raftainer/pods/locks/test-pod/9.lock";
+      podLocks = { "test-pod": existingLockKey };
+      const largePod: ConsulPodEntry = {
+        ...mockPod,
+        pod: { ...mockPod.pod, maxInstances: 10 },
+      };
+      mockConsul.kv.set.mockResolvedValue(true);
+
+      // Act
+      const result = await tryLockPod(
+        mockConsul,
+        mockSession,
+        podLocks,
+        largePod,
+      );
+
+      // Assert
+      expect(result).toEqual({
+        ...largePod,
+        lockKey: existingLockKey,
+      });
+      expect(mockConsul.kv.set).toHaveBeenCalledTimes(1);
+      expect(mockConsul.kv.set).toHaveBeenCalledWith({
+        key: existingLockKey,
+        value: expect.any(String),
+        acquire: mockSession,
+      });
+    });
+
     it("should try all possible lock keys up to maxInstances", async () => {
       // Arrange
       mockConsul.kv.set
