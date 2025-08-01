@@ -4,6 +4,9 @@ import { tryLockPod, ConsulPodEntryWithLock, PodLock } from "./consul";
 import { ConsulPodEntry } from "@raftainer/models";
 import { ConstraintMatcher } from "./constraint-matcher";
 import { TTLCache } from "./ttlCache";
+import pLimit from "p-limit";
+
+export const LOCK_CONCURRENCY = 5;
 
 export async function lockPods(
   podEntries: ConsulPodEntry[],
@@ -15,65 +18,76 @@ export async function lockPods(
 ): Promise<ConsulPodEntryWithLock[]> {
   try {
     logger.debug({ podCount: podEntries.length }, "Attempting to lock pods");
+    const limit = pLimit(LOCK_CONCURRENCY);
 
     const lockResults = await Promise.all(
-      podEntries.map(async (podEntry) => {
-        try {
-          if (!(await constraintMatcher.meetsConstraints(podEntry))) {
-            logger.info(
-              {
-                podName: podEntry.pod.name,
-                constraints: podEntry.pod.containers.flatMap(
-                  (c) => c.hardwareConstraints?.gpus || [],
-                ),
-              },
-              "Host does not meet pod constraints",
-            );
-            return null;
-          }
+      podEntries.map((podEntry) =>
+        limit(async () => {
+          try {
+            if (!(await constraintMatcher.meetsConstraints(podEntry))) {
+              logger.info(
+                {
+                  podName: podEntry.pod.name,
+                  constraints: podEntry.pod.containers.flatMap(
+                    (c) => c.hardwareConstraints?.gpus || [],
+                  ),
+                },
+                "Host does not meet pod constraints",
+              );
+              return null;
+            }
 
-          const failureReason = failedPods.get(podEntry.pod.name);
-          if (failureReason) {
-            logger.warn(
-              {
-                podName: podEntry.pod.name,
-                failureReason,
-              },
-              "Skipping previously failed pod",
-            );
-            return null;
-          }
+            const failureReason = failedPods.get(podEntry.pod.name);
+            if (failureReason) {
+              logger.warn(
+                {
+                  podName: podEntry.pod.name,
+                  failureReason,
+                },
+                "Skipping previously failed pod",
+              );
+              return null;
+            }
 
-          logger.debug(
-            { podName: podEntry.pod.name },
-            "Attempting to lock pod",
-          );
-          const result = await tryLockPod(consul, session, podLocks, podEntry);
-          if (result) {
             logger.debug(
+              { podName: podEntry.pod.name },
+              "Attempting to lock pod",
+            );
+            const result = await tryLockPod(
+              consul,
+              session,
+              podLocks,
+              podEntry,
+            );
+            if (result) {
+              logger.debug(
+                {
+                  podName: podEntry.pod.name,
+                  lockKey: result.lockKey,
+                },
+                "Successfully locked pod",
+              );
+            } else {
+              logger.debug(
+                { podName: podEntry.pod.name },
+                "Failed to lock pod",
+              );
+            }
+            return result;
+          } catch (error) {
+            logger.error(
               {
                 podName: podEntry.pod.name,
-                lockKey: result.lockKey,
+                error: error,
+                message: error.message,
+                stack: error.stack,
               },
-              "Successfully locked pod",
+              "Error while trying to lock pod",
             );
-          } else {
-            logger.debug({ podName: podEntry.pod.name }, "Failed to lock pod");
+            return null;
           }
-          return result;
-        } catch (error) {
-          logger.error(
-            {
-              podName: podEntry.pod.name,
-              error: error,
-              message: error.message,
-              stack: error.stack,
-            },
-            "Error while trying to lock pod",
-          );
-          return null;
-        }
-      }),
+        }),
+      ),
     );
 
     const lockedPods: ConsulPodEntryWithLock[] = lockResults
