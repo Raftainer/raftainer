@@ -109,11 +109,17 @@ export async function tryLockPod(
 
   // Try to use existing lock key, iff it would not violate the current `maxInstances` count
   let lockKey = podLocks[pod.pod.name];
-  if (lockKey && lockKey < getLockKey(pod.pod.name, pod.pod.maxInstances)) {
-    const lockResult = await tryLock(consul, session, lockKey);
-    if (lockResult) {
-      logger.debug("Got lock %s for pod %s", lockKey, pod.pod.name);
-      return { ...pod, lockKey };
+  if (lockKey) {
+    const match = lockKey.match(/\/(\d+)\.lock$/);
+    const index = match ? Number(match[1]) : NaN;
+    if (!Number.isNaN(index) && index < pod.pod.maxInstances) {
+      const lockResult = await tryLock(consul, session, lockKey);
+      if (lockResult) {
+        logger.debug("Got lock %s for pod %s", lockKey, pod.pod.name);
+        return { ...pod, lockKey };
+      }
+    } else {
+      logger.debug({ lockKey }, "Skipping lock key");
     }
   } else {
     logger.debug({ lockKey }, "Skipping lock key");
