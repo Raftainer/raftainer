@@ -118,4 +118,5 @@ Raftainer uses environment variables for configuration:
 - `RAFTAINER_INTERNAL_IP` - The internal IP of the host
 - `RAFTAINER_CONSUL_HOST` - The Consul host
 - `RAFTAINER_CONSUL_PORT` - The Consul port (default: 8500)
+- `RAFTAINER_CONSUL_DATACENTER` - The Consul datacenter (optional, e.g., "jfk", "iad")
 - `RAFTAINER_FAST_STARTUP` - Whether to enable fast startup mode (default: false)

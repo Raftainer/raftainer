@@ -25,6 +25,7 @@ const constraintMatcher = new ConstraintMatcher();
   const consul: Consul = new Consul({
     host: config.consul.host,
     port: config.consul.port,
+    ...(config.consul.datacenter && { defaults: { dc: config.consul.datacenter } }),
   });
 
   logger.debug("Initializing docker connection");
