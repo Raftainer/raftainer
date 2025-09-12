@@ -1,6 +1,6 @@
-import { ConsulPodEntry } from "@raftainer/models/dist";
-import si, { Systeminformation } from "systeminformation";
-import { logger } from "./logger";
+import { ConsulPodEntry } from '@raftainer/models/dist';
+import si, { Systeminformation } from 'systeminformation';
+import { logger } from './logger';
 
 /**
  * Checks whether a host system can run a pod, based on hardware constraints
@@ -23,7 +23,7 @@ export class ConstraintMatcher {
             vram: gpu.vram,
           })),
         },
-        "Checking GPU constraints",
+        'Checking GPU constraints',
       );
 
       const gpuConstraints = pod.pod.containers.flatMap(
@@ -37,7 +37,7 @@ export class ConstraintMatcher {
               requiredCount: constraint.gpuCount,
               availableCount: gpus.length,
             },
-            "GPU count constraint not met",
+            'GPU count constraint not met',
           );
           return false;
         }
@@ -51,7 +51,7 @@ export class ConstraintMatcher {
               requiredVram: constraint.vramBytes,
               availableVram: gpus.map((gpu) => gpu.vram),
             },
-            "GPU VRAM constraint not met",
+            'GPU VRAM constraint not met',
           );
           return false;
         }
@@ -65,7 +65,7 @@ export class ConstraintMatcher {
           message: error.message,
           stack: error.stack,
         },
-        "Error checking GPU constraints",
+        'Error checking GPU constraints',
       );
       return false;
     }
@@ -78,11 +78,11 @@ export class ConstraintMatcher {
    */
   async meetsConstraints(pod: ConsulPodEntry) {
     try {
-      logger.debug({ podName: pod.pod.name }, "Checking hardware constraints");
+      logger.debug({ podName: pod.pod.name }, 'Checking hardware constraints');
       const result = await this.meetsGpuConstraints(pod);
       logger.debug(
         { podName: pod.pod.name, result },
-        "Hardware constraint check result",
+        'Hardware constraint check result',
       );
       return result;
     } catch (error) {
@@ -93,7 +93,7 @@ export class ConstraintMatcher {
           message: error.message,
           stack: error.stack,
         },
-        "Error checking hardware constraints",
+        'Error checking hardware constraints',
       );
       return false;
     }

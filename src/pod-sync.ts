@@ -1,16 +1,16 @@
-import Docker from "dockerode";
-import Consul from "@wkronmiller/consul";
-import { logger } from "./logger";
-import { getPods, releasePod, PodLock } from "./consul";
-import { ConsulPodEntry } from "@raftainer/models";
-import { stopOrphanedContainers } from "./containers";
-import { stopOrphanedNetworks } from "./networks";
-import { Vault } from "./vault";
-import { ConstraintMatcher } from "./constraint-matcher";
-import { TTLCache } from "./ttlCache";
-import { lockPods } from "./pod-locking";
-import { launchPods } from "./pod-launcher";
-import { registerPods } from "./pod-registration";
+import Docker from 'dockerode';
+import Consul from '@wkronmiller/consul';
+import { logger } from './logger';
+import { getPods, releasePod, PodLock } from './consul';
+import { ConsulPodEntry } from '@raftainer/models';
+import { stopOrphanedContainers } from './containers';
+import { stopOrphanedNetworks } from './networks';
+import { Vault } from './vault';
+import { ConstraintMatcher } from './constraint-matcher';
+import { TTLCache } from './ttlCache';
+import { lockPods } from './pod-locking';
+import { launchPods } from './pod-launcher';
+import { registerPods } from './pod-registration';
 
 export async function syncPods(
   consul: Consul,
@@ -22,13 +22,13 @@ export async function syncPods(
   vault: Vault,
 ) {
   const syncStartTime = Date.now();
-  logger.info("Starting pod synchronization", { session });
+  logger.info('Starting pod synchronization', { session });
 
   try {
     const podEntries: ConsulPodEntry[] = await getPods(consul);
     logger.debug(
       { podCount: podEntries.length },
-      "Retrieved pod definitions from Consul",
+      'Retrieved pod definitions from Consul',
     );
 
     const lockedPods = await lockPods(
@@ -44,7 +44,7 @@ export async function syncPods(
         lockedPodCount: lockedPods.length,
         lockedPods: lockedPods.map((p) => p.pod.name),
       },
-      "Locked pods for this host",
+      'Locked pods for this host',
     );
 
     const launchedPods = await launchPods(
@@ -64,7 +64,7 @@ export async function syncPods(
         successfulPods: successfulPods.map((p) => p.podEntry.pod.name),
         failedPods: failedPodsResults.map((p) => p.podEntry.pod.name),
       },
-      "Pod launch results",
+      'Pod launch results',
     );
 
     if (failedPodsResults.length > 0) {
@@ -75,7 +75,7 @@ export async function syncPods(
             error: p.error,
           })),
         },
-        "Failed to launch some pods",
+        'Failed to launch some pods',
       );
 
       for (const { podEntry, error } of failedPodsResults) {
@@ -84,7 +84,7 @@ export async function syncPods(
             podName: podEntry.pod.name,
             error,
           },
-          "Releasing lock for failed pod",
+          'Releasing lock for failed pod',
         );
         await releasePod(consul, session, podEntry, error);
       }
@@ -96,7 +96,7 @@ export async function syncPods(
         registeredCount: registeredServiceIds.length,
         serviceIds: registeredServiceIds,
       },
-      "Registered services in Consul",
+      'Registered services in Consul',
     );
 
     const successfulPodNames = new Set(
@@ -107,7 +107,7 @@ export async function syncPods(
     await stopOrphanedNetworks(docker, successfulPodNames);
 
     const syncDuration = Date.now() - syncStartTime;
-    logger.info("Sync complete", {
+    logger.info('Sync complete', {
       session,
       successfulPodCount: successfulPodNames.size,
       successfulPods: Array.from(successfulPodNames),
@@ -124,7 +124,7 @@ export async function syncPods(
         stack: error.stack,
         durationMs: syncDuration,
       },
-      "Error during pod synchronization",
+      'Error during pod synchronization',
     );
   }
 }

@@ -1,8 +1,8 @@
-import Consul from "@wkronmiller/consul";
-import { logger } from "./logger";
-import { deregisterServices } from "./consul";
-import { config } from "./config";
-import { InternalPort, TraefikPort } from "@raftainer/models/dist";
+import Consul from '@wkronmiller/consul';
+import { logger } from './logger';
+import { deregisterServices } from './consul';
+import { config } from './config';
+import { InternalPort, TraefikPort } from '@raftainer/models/dist';
 
 const UpdateInterval = 10_000;
 
@@ -12,9 +12,9 @@ async function registerPod(consul: Consul, pod: any) {
     id,
     name: pod.podEntry.pod.name,
     tags: [
-      "raftainer",
-      "raftainer-pod",
-      "pod",
+      'raftainer',
+      'raftainer-pod',
+      'pod',
       `host-${config.name}`,
       `region-${config.region}`,
     ],
@@ -25,13 +25,13 @@ async function registerPod(consul: Consul, pod: any) {
     },
   });
   if (pod.error) {
-    logger.warn({ id, error: pod.error }, "Marking service unhealthy");
+    logger.warn({ id, error: pod.error }, 'Marking service unhealthy');
     await consul.agent.check.fail({
       id: `service:${id}`,
       note: String(pod.error),
     });
   } else {
-    logger.info({ id }, "Marking service healthy");
+    logger.info({ id }, 'Marking service healthy');
     await consul.agent.check.pass(`service:${id}`);
   }
   return id;
@@ -42,7 +42,7 @@ async function registerInternalPorts(consul: Consul, pod: any) {
   for (const container of pod.podEntry.pod.containers) {
     if (container.ports) {
       for (const port of container.ports) {
-        if ("internalPort" in port) {
+        if ('internalPort' in port) {
           const id = `raftainer-${pod.podEntry.pod.name}-${port.name}`;
           await consul.agent.service.register({
             id,
@@ -50,27 +50,27 @@ async function registerInternalPorts(consul: Consul, pod: any) {
             address: config.internalIp,
             port: port.internalPort,
             tags: [
-              "raftainer",
-              "raftainer-internal-port",
-              "container",
+              'raftainer',
+              'raftainer-internal-port',
+              'container',
               `host-${config.name}`,
               `region-${config.region}`,
-              ...("hostname" in port
+              ...('hostname' in port
                 ? [
-                    "traefik.enable=true",
-                    `traefik.http.routers.${id}-router.rule=Host(\`${port.hostname}\`)`,
-                  ]
+                  'traefik.enable=true',
+                  `traefik.http.routers.${id}-router.rule=Host(\`${port.hostname}\`)`,
+                ]
                 : []),
             ],
             check: {
               name: `raftainer-${pod.podEntry.pod.name}-${container.name}-check`,
-              interval: "10s",
-              timeout: "5s",
+              interval: '10s',
+              timeout: '5s',
               tcp: `${config.internalIp}:${port.internalPort}`,
-              deregistercriticalserviceafter: "5m",
+              deregistercriticalserviceafter: '5m',
             },
           });
-          logger.info({ id }, "Registered service for internal port");
+          logger.info({ id }, 'Registered service for internal port');
           ids.push(id);
         }
       }
@@ -93,7 +93,7 @@ export async function registerPods(
         })
         .map((promise) =>
           promise.catch((err) => {
-            logger.error({ err }, "Failed to launch pod");
+            logger.error({ err }, 'Failed to launch pod');
             return null;
           }),
         ),
@@ -103,7 +103,7 @@ export async function registerPods(
     .filter((a) => a !== null);
 
   await deregisterServices(consul, serviceIds);
-  logger.info("Synced services", { serviceIds });
+  logger.info('Synced services', { serviceIds });
 
   return serviceIds;
 }
