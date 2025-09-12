@@ -2,9 +2,9 @@ import Docker, {
   Network,
   NetworkInspectInfo,
   NetworkListOptions,
-} from "dockerode";
-import { logger } from "./logger";
-import { ConsulPodEntry, OrchestratorName } from "@raftainer/models";
+} from 'dockerode';
+import { logger } from './logger';
+import { ConsulPodEntry, OrchestratorName } from '@raftainer/models';
 
 type ExistingNetworks = { [name: string]: Network };
 
@@ -37,7 +37,7 @@ async function getExistingNetworks(docker: Docker): Promise<ExistingNetworks> {
  * @returns Created Network object
  */
 async function createNetwork(docker: Docker, name: string): Promise<Network> {
-  logger.info({ name }, "Creating docker network");
+  logger.info({ name }, 'Creating docker network');
   return await docker.createNetwork({
     Name: name,
     CheckDuplicate: true,
@@ -54,11 +54,11 @@ async function createNetwork(docker: Docker, name: string): Promise<Network> {
  */
 async function deleteNetwork(_: Docker, network: Network) {
   try {
-    logger.info({ id: network.id }, "Removing network");
+    logger.info({ id: network.id }, 'Removing network');
     await network.remove({
       force: true,
     });
-    logger.debug({ id: network.id }, "Successfully removed network");
+    logger.debug({ id: network.id }, 'Successfully removed network');
   } catch (error) {
     logger.error(
       {
@@ -67,7 +67,7 @@ async function deleteNetwork(_: Docker, network: Network) {
         message: error.message,
         stack: error.stack,
       },
-      "Failed to remove network",
+      'Failed to remove network',
     );
     throw error; // Re-throw to allow caller to handle
   }
@@ -94,10 +94,10 @@ export async function launchPodNetworks(
   const existingNetworks = await getExistingNetworks(docker);
   logger.info(
     { networkName, existingNetworks: Object.keys(existingNetworks) },
-    "Existing networks",
+    'Existing networks',
   );
   if (existingNetworks[networkName]) {
-    logger.debug({ networkName }, "Re-using existing network");
+    logger.debug({ networkName }, 'Re-using existing network');
     //TODO: update network settings as needed
     return { primary: existingNetworks[networkName] };
   }
@@ -120,7 +120,7 @@ export async function stopOrphanedNetworks(
         expectedNetworkNames: Array.from(expectedNetworkNames),
         activePodCount: activePodNames.size,
       },
-      "Checking for orphaned networks",
+      'Checking for orphaned networks',
     );
 
     const existingNetworks = await getExistingNetworks(docker);
@@ -129,7 +129,7 @@ export async function stopOrphanedNetworks(
         existingNetworkCount: Object.keys(existingNetworks).length,
         existingNetworks: Object.keys(existingNetworks),
       },
-      "Found existing networks",
+      'Found existing networks',
     );
 
     const deletedNetworks: string[] = [];
@@ -140,7 +140,7 @@ export async function stopOrphanedNetworks(
         try {
           logger.debug(
             { name, id: network.id },
-            "Attempting to delete orphaned network",
+            'Attempting to delete orphaned network',
           );
           await deleteNetwork(docker, network);
           deletedNetworks.push(name);
@@ -154,7 +154,7 @@ export async function stopOrphanedNetworks(
               message: error.message,
               stack: error.stack,
             },
-            "Unable to delete orphaned network",
+            'Unable to delete orphaned network',
           );
         }
       }
@@ -166,7 +166,7 @@ export async function stopOrphanedNetworks(
           deletedNetworks,
           count: deletedNetworks.length,
         },
-        "Removed orphaned networks",
+        'Removed orphaned networks',
       );
     }
 
@@ -176,7 +176,7 @@ export async function stopOrphanedNetworks(
           failedDeletions: failedDeletions.map((f) => f.name),
           count: failedDeletions.length,
         },
-        "Some networks could not be deleted",
+        'Some networks could not be deleted',
       );
     }
 
@@ -188,7 +188,7 @@ export async function stopOrphanedNetworks(
         message: error.message,
         stack: error.stack,
       },
-      "Error stopping orphaned networks",
+      'Error stopping orphaned networks',
     );
     return [];
   }

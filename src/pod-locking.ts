@@ -1,10 +1,10 @@
-import Consul from "@wkronmiller/consul";
-import { logger } from "./logger";
-import { tryLockPod, ConsulPodEntryWithLock, PodLock } from "./consul";
-import { ConsulPodEntry } from "@raftainer/models";
-import { ConstraintMatcher } from "./constraint-matcher";
-import { TTLCache } from "./ttlCache";
-import pLimit from "p-limit";
+import Consul from '@wkronmiller/consul';
+import { logger } from './logger';
+import { tryLockPod, ConsulPodEntryWithLock, PodLock } from './consul';
+import { ConsulPodEntry } from '@raftainer/models';
+import { ConstraintMatcher } from './constraint-matcher';
+import { TTLCache } from './ttlCache';
+import pLimit from 'p-limit';
 
 export const LOCK_CONCURRENCY = 5;
 
@@ -17,7 +17,7 @@ export async function lockPods(
   constraintMatcher: ConstraintMatcher,
 ): Promise<ConsulPodEntryWithLock[]> {
   try {
-    logger.debug({ podCount: podEntries.length }, "Attempting to lock pods");
+    logger.debug({ podCount: podEntries.length }, 'Attempting to lock pods');
     const limit = pLimit(LOCK_CONCURRENCY);
 
     const lockResults = await Promise.all(
@@ -32,7 +32,7 @@ export async function lockPods(
                     (c) => c.hardwareConstraints?.gpus || [],
                   ),
                 },
-                "Host does not meet pod constraints",
+                'Host does not meet pod constraints',
               );
               return null;
             }
@@ -44,14 +44,14 @@ export async function lockPods(
                   podName: podEntry.pod.name,
                   failureReason,
                 },
-                "Skipping previously failed pod",
+                'Skipping previously failed pod',
               );
               return null;
             }
 
             logger.debug(
               { podName: podEntry.pod.name },
-              "Attempting to lock pod",
+              'Attempting to lock pod',
             );
             const result = await tryLockPod(
               consul,
@@ -65,12 +65,12 @@ export async function lockPods(
                   podName: podEntry.pod.name,
                   lockKey: result.lockKey,
                 },
-                "Successfully locked pod",
+                'Successfully locked pod',
               );
             } else {
               logger.debug(
                 { podName: podEntry.pod.name },
-                "Failed to lock pod",
+                'Failed to lock pod',
               );
             }
             return result;
@@ -82,7 +82,7 @@ export async function lockPods(
                 message: error.message,
                 stack: error.stack,
               },
-              "Error while trying to lock pod",
+              'Error while trying to lock pod',
             );
             return null;
           }
@@ -100,7 +100,7 @@ export async function lockPods(
         lockedPods: lockedPods.map((p) => p.pod.name),
         session,
       },
-      "Acquired pods",
+      'Acquired pods',
     );
 
     for (const lockedPod of lockedPods) {
@@ -115,7 +115,7 @@ export async function lockPods(
         message: error.message,
         stack: error.stack,
       },
-      "Error locking pods",
+      'Error locking pods',
     );
     return [];
   }

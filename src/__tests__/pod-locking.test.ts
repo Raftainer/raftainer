@@ -1,13 +1,13 @@
-import { lockPods, LOCK_CONCURRENCY } from "../pod-locking";
-import { TTLCache } from "../ttlCache";
+import { lockPods, LOCK_CONCURRENCY } from '../pod-locking';
+import { TTLCache } from '../ttlCache';
 
-jest.mock("../consul", () => ({
+jest.mock('../consul', () => ({
   tryLockPod: jest.fn(),
 }));
-import { tryLockPod } from "../consul";
+import { tryLockPod } from '../consul';
 const mockTryLockPod = tryLockPod as jest.Mock;
 
-jest.mock("../logger", () => ({
+jest.mock('../logger', () => ({
   logger: {
     debug: jest.fn(),
     info: jest.fn(),
@@ -16,8 +16,8 @@ jest.mock("../logger", () => ({
   },
 }));
 
-describe("lockPods", () => {
-  it("respects concurrency limits while locking pods", async () => {
+describe('lockPods', () => {
+  it('respects concurrency limits while locking pods', async () => {
     const podEntries = Array.from({ length: 10 }, (_, i) => ({
       key: `pods/pod${i}`,
       pod: { name: `pod${i}`, containers: [], maxInstances: 1 },
@@ -46,7 +46,7 @@ describe("lockPods", () => {
     const locked = await lockPods(
       podEntries,
       {} as any,
-      "session",
+      'session',
       {} as any,
       new TTLCache<string, string>(1000),
       constraintMatcher as any,

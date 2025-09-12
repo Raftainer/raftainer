@@ -1,13 +1,13 @@
-import Docker from "dockerode";
-import Consul from "@wkronmiller/consul";
-import { logger } from "./logger";
-import { configureHostSession, PodLock, RaftainerPodsKey } from "./consul";
-import { config } from "./config";
-import { Vault } from "./vault";
-import { ConstraintMatcher } from "./constraint-matcher";
-import { Mutex } from "async-mutex";
-import { TTLCache } from "./ttlCache";
-import { syncPods } from "./pod-sync";
+import Docker from 'dockerode';
+import Consul from '@wkronmiller/consul';
+import { logger } from './logger';
+import { configureHostSession, PodLock, RaftainerPodsKey } from './consul';
+import { config } from './config';
+import { Vault } from './vault';
+import { ConstraintMatcher } from './constraint-matcher';
+import { Mutex } from 'async-mutex';
+import { TTLCache } from './ttlCache';
+import { syncPods } from './pod-sync';
 
 const vault = new Vault();
 
@@ -19,15 +19,16 @@ const UpdateInterval = 10_000;
 const constraintMatcher = new ConstraintMatcher();
 
 (async function main() {
-  logger.info("Starting service");
+  logger.info('Starting service');
 
-  logger.debug("Initializing consul connection");
+  logger.debug('Initializing consul connection');
   const consul: Consul = new Consul({
     host: config.consul.host,
     port: config.consul.port,
+    ...(config.consul.datacenter && { defaults: { dc: config.consul.datacenter } }),
   });
 
-  logger.debug("Initializing docker connection");
+  logger.debug('Initializing docker connection');
   const docker = new Docker();
 
   await docker.pruneVolumes({});
@@ -48,8 +49,8 @@ const constraintMatcher = new ConstraintMatcher();
   // Only sync one at a time
   const syncMutex = new Mutex();
 
-  configWatch.on("change", (change) => {
-    logger.info({ change }, "Config changed");
+  configWatch.on('change', (change) => {
+    logger.info({ change }, 'Config changed');
     syncMutex.runExclusive(() =>
       syncPods(
         consul,

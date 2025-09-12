@@ -1,4 +1,15 @@
-import { SystemConfig, HostConfig } from "@raftainer/models";
+import { HostConfig } from '@raftainer/models';
+
+/**
+ * System configuration interface with Consul datacenter support
+ */
+export interface SystemConfig {
+  readonly consul: {
+    readonly host: string;
+    readonly port: number;
+    readonly datacenter?: string;
+  };
+}
 
 /**
  * Configuration object that combines system and host configuration
@@ -11,9 +22,10 @@ export const config: SystemConfig & HostConfig = {
   internalIp: process.env.RAFTAINER_INTERNAL_IP!,
   consul: {
     host: process.env.RAFTAINER_CONSUL_HOST!,
-    port: Number(process.env.RAFTAINER_CONSUL_PORT || "8500"),
+    port: Number(process.env.RAFTAINER_CONSUL_PORT || '8500'),
+    datacenter: process.env.RAFTAINER_CONSUL_DATACENTER,
   },
   fastStartup: Boolean(
-    JSON.parse(process.env.RAFTAINER_FAST_STARTUP || "false"),
+    JSON.parse(process.env.RAFTAINER_FAST_STARTUP || 'false'),
   ),
 };

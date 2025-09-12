@@ -1,17 +1,17 @@
-import Docker from "dockerode";
-import { createHash } from "node:crypto";
-import { logger } from "./logger";
+import Docker from 'dockerode';
+import { createHash } from 'node:crypto';
+import { logger } from './logger';
 import {
   ExposedPort,
   ConsulPodEntry,
   OrchestratorName,
   Container,
   ContainerType,
-} from "@raftainer/models";
-import { ContainerInfo } from "dockerode";
-import { PodNetworks } from "./networks";
-import { config } from "./config";
-import { Vault } from "./vault";
+} from '@raftainer/models';
+import { ContainerInfo } from 'dockerode';
+import { PodNetworks } from './networks';
+import { config } from './config';
+import { Vault } from './vault';
 
 /**
  * Converts Raftainer port protocol to Docker protocol format
@@ -20,10 +20,10 @@ import { Vault } from "./vault";
  */
 export function getDockerProtocol(port: ExposedPort): string {
   switch (port.protocol) {
-    case "UDP":
-      return "udp";
-    default:
-      return "tcp";
+  case 'UDP':
+    return 'udp';
+  default:
+    return 'tcp';
   }
 }
 
@@ -44,7 +44,7 @@ async function getExistingContainers(
       },
     })
   ).reduce((obj, container: ContainerInfo) => {
-    logger.trace({ container }, "Found existing container");
+    logger.trace({ container }, 'Found existing container');
     // @ts-expect-error assuming that container has exactly one name with '/' as prefix
     obj[container.Names[0].slice(1)] = container; // remove leading slash in name
     return obj;
@@ -59,10 +59,10 @@ async function getExistingContainers(
  */
 function getRestartPolicy(containerType: ContainerType): string {
   switch (containerType) {
-    case ContainerType.PodStartup:
-      return "no";
-    case ContainerType.LongRunning:
-      return "unless-stopped";
+  case ContainerType.PodStartup:
+    return 'no';
+  case ContainerType.LongRunning:
+    return 'unless-stopped';
   }
 }
 
@@ -72,7 +72,7 @@ function getRestartPolicy(containerType: ContainerType): string {
  * @returns MD5 hash as a hex string
  */
 function getHash(item: string): string {
-  return createHash("md5").update(item).digest("hex");
+  return createHash('md5').update(item).digest('hex');
 }
 
 async function launchPodContainer(
@@ -83,32 +83,32 @@ async function launchPodContainer(
   podEntry: ConsulPodEntry,
   containerConfig: Container,
 ): Promise<object> {
-  logger.info({ image: containerConfig.image }, "Pulling image");
+  logger.info({ image: containerConfig.image }, 'Pulling image');
   await docker.pull(containerConfig.image);
   const containerName = `${podEntry.pod.name}.${containerConfig.name}`;
   const configHash = getHash(JSON.stringify(containerConfig));
-  logger.trace({ configHash, containerConfig }, "Created config hash");
+  logger.trace({ configHash, containerConfig }, 'Created config hash');
   const existingContainerInfo = existingContainers[containerName];
   try {
     if (existingContainerInfo !== undefined) {
       logger.trace(
         { containerName, existingContainerInfo },
-        "Found existing container",
+        'Found existing container',
       );
       const existingContainer = docker.getContainer(existingContainerInfo.Id);
       // TODO: check image hash
       if (existingContainerInfo.Labels.ConfigHash === configHash) {
         logger.debug(
           { containerName, existingContainerInfo },
-          "Container config matches existing config",
+          'Container config matches existing config',
         );
         if (
-          existingContainerInfo.State !== "running" &&
+          existingContainerInfo.State !== 'running' &&
           containerConfig.containerType !== ContainerType.PodStartup
         ) {
           logger.debug(
             { containerName, existingContainerInfo },
-            "Existing container is not running, killing it.",
+            'Existing container is not running, killing it.',
           );
           await existingContainer.remove({ force: true });
         } else {
@@ -118,25 +118,25 @@ async function launchPodContainer(
           };
         }
       }
-      logger.debug({ existingContainerInfo }, "Removing existing container");
+      logger.debug({ existingContainerInfo }, 'Removing existing container');
       await existingContainer.remove({ force: true });
       logger.debug(
         { containerName, existingContainerInfo },
-        "Removed existing container",
+        'Removed existing container',
       );
     }
   } catch (error) {
     logger.warn(
       { error, existingContainerInfo },
-      "Failed to launch existing container",
+      'Failed to launch existing container',
     );
     await docker.getContainer(existingContainerInfo.Id).remove({ force: true });
   }
   let containerTTL: number | undefined;
   const env: string[] = [
     `HOSTNAME=${config.name}`,
-    `RAFTAINER_SECURE_IP=${config.secureIp || ""}`,
-    `RAFTAINER_INTERNAL_IP=${config.internalIp || ""}`,
+    `RAFTAINER_SECURE_IP=${config.secureIp || ''}`,
+    `RAFTAINER_INTERNAL_IP=${config.internalIp || ''}`,
   ];
   if (containerConfig.environment !== undefined) {
     const vaultDatabaseRoles: Record<
@@ -147,9 +147,9 @@ async function launchPodContainer(
       `raftainer/${podEntry.pod.name}`,
     );
     for (const [k, v] of Object.entries(containerConfig.environment)) {
-      if (typeof v === "string") {
+      if (typeof v === 'string') {
         env.push(`${k}=${v}`);
-      } else if ("vaultDatabaseRole" in v) {
+      } else if ('vaultDatabaseRole' in v) {
         if (!vaultDatabaseRoles[v.vaultDatabaseRole]) {
           const { username, password, ttl } = await vault.getDbCredentials(
             v.vaultDatabaseRole,
@@ -160,13 +160,13 @@ async function launchPodContainer(
         env.push(
           `${k}=${vaultDatabaseRoles[v.vaultDatabaseRole][v.loginField]}`,
         );
-      } else if ("vaultKey" in v) {
+      } else if ('vaultKey' in v) {
         env.push(`${k}=${vaultSecrets[v.vaultKey]}`);
-      } else if ("ip" in v) {
+      } else if ('ip' in v) {
         switch (v.ip) {
-          case "secure":
-            env.push(`${k}=${config.secureIp}`);
-            break;
+        case 'secure':
+          env.push(`${k}=${config.secureIp}`);
+          break;
         }
       }
     }
@@ -174,12 +174,12 @@ async function launchPodContainer(
 
   const portBindings = (containerConfig.ports || []).reduce((obj, port) => {
     const bindings = [];
-    if (port.portType === "Internal") {
+    if (port.portType === 'Internal') {
       bindings.push({
         HostIp: config.secureIp,
         HostPort: String(port.internalPort),
       });
-    } else if (port.portType === "External") {
+    } else if (port.portType === 'External') {
       bindings.push({ HostPort: String(port.externalPort) });
     } else {
       return obj;
@@ -189,13 +189,13 @@ async function launchPodContainer(
     return obj;
   }, {});
 
-  logger.info({ containerName, portBindings }, "Created port bindings");
+  logger.info({ containerName, portBindings }, 'Created port bindings');
   const deviceRequests = [];
   if (containerConfig.hardwareConstraints?.gpus !== undefined) {
     deviceRequests.push({
-      Driver: "nvidia",
+      Driver: 'nvidia',
       Count: -1, // Number of GPUs to assign; use -1 for all available GPUs
-      Capabilities: [["gpu"]],
+      Capabilities: [['gpu']],
     });
   }
   const container = await docker.createContainer({
@@ -235,7 +235,7 @@ async function launchPodContainer(
       },
     },
   });
-  logger.debug({ containerConfig, container }, "Created container");
+  logger.debug({ containerConfig, container }, 'Created container');
   await container.start();
   return {
     container: await container.inspect(),
@@ -254,7 +254,7 @@ export async function launchPodContainers(
   podEntry: ConsulPodEntry,
 ): Promise<PodEntryWithContainers> {
   const existingContainers = await getExistingContainers(docker);
-  logger.info({ podEntry }, "Launching pod");
+  logger.info({ podEntry }, 'Launching pod');
   const launchedContainers = [];
   for (const containerConfig of podEntry.pod.containers) {
     launchedContainers.push(
@@ -282,7 +282,7 @@ export async function stopOrphanedContainers(
         activePodCount: activePodNames.size,
         activePods: Array.from(activePodNames),
       },
-      "Checking for orphaned containers",
+      'Checking for orphaned containers',
     );
 
     const existingContainers = await getExistingContainers(docker);
@@ -290,7 +290,7 @@ export async function stopOrphanedContainers(
       {
         containerCount: Object.keys(existingContainers).length,
       },
-      "Found existing containers",
+      'Found existing containers',
     );
 
     const containersToRemove = [];
@@ -299,7 +299,7 @@ export async function stopOrphanedContainers(
     for (const name of Object.keys(existingContainers)) {
       const containerInfo = existingContainers[name];
       // Get the name of the pod associated with the container
-      const podName = containerInfo.Labels["PodName"];
+      const podName = containerInfo.Labels['PodName'];
 
       if (!activePodNames.has(podName)) {
         containersToRemove.push({
@@ -315,7 +315,7 @@ export async function stopOrphanedContainers(
             podName,
             state: containerInfo.State,
           },
-          "Terminating orphaned container",
+          'Terminating orphaned container',
         );
 
         const container = docker.getContainer(containerInfo.Id);
@@ -335,7 +335,7 @@ export async function stopOrphanedContainers(
               message: error.message,
               stack: error.stack,
             },
-            "Failed to delete container",
+            'Failed to delete container',
           );
 
           removalResults.push({
@@ -355,7 +355,7 @@ export async function stopOrphanedContainers(
           successCount: removalResults.filter((r) => r.success).length,
           failCount: removalResults.filter((r) => !r.success).length,
         },
-        "Container cleanup summary",
+        'Container cleanup summary',
       );
     }
   } catch (error) {
@@ -365,7 +365,7 @@ export async function stopOrphanedContainers(
         message: error.message,
         stack: error.stack,
       },
-      "Error stopping orphaned containers",
+      'Error stopping orphaned containers',
     );
   }
 }

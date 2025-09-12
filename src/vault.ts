@@ -1,5 +1,5 @@
-import vault from "node-vault";
-import { logger } from "./logger";
+import vault from 'node-vault';
+import { logger } from './logger';
 
 export class Vault {
   private loggingIn?: Promise<void>;
@@ -7,8 +7,8 @@ export class Vault {
 
   constructor() {
     this.vc = vault({
-      apiVersion: "v1", // default
-      endpoint: "http://vault.service.consul:8200", // default
+      apiVersion: 'v1', // default
+      endpoint: 'http://vault.service.consul:8200', // default
     });
   }
 
@@ -18,12 +18,12 @@ export class Vault {
    */
   async login() {
     if (this.vc.token) {
-      logger.debug("Using cached vault credentials");
+      logger.debug('Using cached vault credentials');
       return;
     }
     if (!this.loggingIn) {
       this.loggingIn = new Promise(async (resolve) => {
-        logger.debug("Generating new vault token");
+        logger.debug('Generating new vault token');
         const result = await this.vc.approleLogin({
           role_id: process.env.VAULT_ROLE_ID,
           secret_id: process.env.VAULT_SECRET_ID,
@@ -56,11 +56,11 @@ export class Vault {
         const {
           data: { data },
         } = await this.vc.read(fullPath);
-        logger.info({ fullPath }, "Loaded secret from path");
+        logger.info({ fullPath }, 'Loaded secret from path');
         return data;
       } catch (error) {
-        if (String(error).includes("404")) {
-          logger.debug({ fullPath }, "Secret not found (404)");
+        if (String(error).includes('404')) {
+          logger.debug({ fullPath }, 'Secret not found (404)');
           return {};
         }
         logger.error(
@@ -70,7 +70,7 @@ export class Vault {
             message: error.message,
             stack: error.stack,
           },
-          "Error reading secret from Vault",
+          'Error reading secret from Vault',
         );
         throw error;
       }
@@ -82,7 +82,7 @@ export class Vault {
           message: loginError.message,
           stack: loginError.stack,
         },
-        "Failed to login to Vault before reading secret",
+        'Failed to login to Vault before reading secret',
       );
       throw loginError;
     }
@@ -101,7 +101,7 @@ export class Vault {
       const path = `database/creds/${role}`;
       logger.debug(
         { role, path },
-        "Requesting database credentials from Vault",
+        'Requesting database credentials from Vault',
       );
 
       const {
@@ -116,7 +116,7 @@ export class Vault {
           ttl,
           passwordLength: password ? password.length : 0,
         },
-        "Successfully retrieved database credentials",
+        'Successfully retrieved database credentials',
       );
 
       return { ttl, username, password };
@@ -128,7 +128,7 @@ export class Vault {
           message: error.message,
           stack: error.stack,
         },
-        "Failed to get database credentials from Vault",
+        'Failed to get database credentials from Vault',
       );
       throw error;
     }
